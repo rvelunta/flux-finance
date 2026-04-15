@@ -1,6 +1,6 @@
 ---
 name: Bug report
-about: Report a bug in the cashflow engine
+about: Report a bug in FLUX
 title: '[BUG] '
 labels: bug
 assignees: ''

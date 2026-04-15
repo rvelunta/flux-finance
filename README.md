@@ -1,6 +1,8 @@
-# Cashflow Engine v2
+# FLUX
 
-A personal finance simulation engine built around two primitives: **accounts** (hold balances) and **flows** (directed transfers between accounts). Models income, expenses, debt, investments, and real estate with compounding interest, zero-cap debt payoff, and a force-directed flow graph.
+A personal finance flow engine built around two primitives: **accounts** (hold balances) and **flows** (directed transfers between accounts). Models income, expenses, debt, investments, and real estate with compounding interest, zero-cap debt payoff, and a force-directed flow graph.
+
+Built with Svelte 5 + Vite + Chart.js.
 
 ## Architecture
 
@@ -57,14 +59,24 @@ Outputs to `dist/` — a static site deployable anywhere.
 ## Project Structure
 
 ```
-cashflow-engine/
+flux/
 ├── src/
-│   ├── index.html       # App shell and modal markup
-│   ├── style.css         # All styles
-│   └── main.js           # Application logic
+│   ├── index.html            # Mount point
+│   ├── main.js               # Svelte entry
+│   ├── App.svelte            # Top-level chrome, tabs, modals
+│   ├── style.css             # All styles
+│   ├── lib/
+│   │   ├── engine.js         # Pure simulation engine
+│   │   ├── state.svelte.js   # Reactive store (Svelte 5 runes) + persistence
+│   │   ├── dates.js          # Date math, flow occurrence expansion
+│   │   ├── format.js         # Currency/period formatters
+│   │   ├── constants.js      # Colors, type/category labels
+│   │   └── seed.js           # Initial demo data
+│   ├── views/                # Dashboard, Accounts, Flows, Graph
+│   └── components/           # Charts, cards, modals
 ├── package.json
 ├── vite.config.js
-├── .gitignore
+├── svelte.config.js
 ├── LICENSE
 └── README.md
 ```
@@ -73,7 +85,7 @@ cashflow-engine/
 
 ```json
 {
-  "version": "v2-3",
+  "version": "flux-v3",
   "accounts": [
     {
       "id": "a-chk",

@@ -2,11 +2,16 @@ import { SEED_ACCOUNTS, SEED_FLOWS } from './seed.js';
 import { FLOW_CAT_DISPLAY as SEED_CAT_DISPLAY } from './constants.js';
 import { runSimulation } from './engine.js';
 
-const LS_KEY = 'cfe_v2e';
+const LS_KEY = 'flux_v3';
+const LEGACY_LS_KEY = 'cfe_v2e';
 
 function loadInitial() {
   try {
-    const raw = localStorage.getItem(LS_KEY);
+    let raw = localStorage.getItem(LS_KEY);
+    if (!raw) {
+      raw = localStorage.getItem(LEGACY_LS_KEY);
+      if (raw) localStorage.removeItem(LEGACY_LS_KEY);
+    }
     if (!raw) return null;
     return JSON.parse(raw);
   } catch { return null; }
@@ -65,7 +70,7 @@ export function saveLS() {
 
 export function exportJSON() {
   const data = {
-    version: 'v2-3',
+    version: 'flux-v3',
     exported: new Date().toISOString(),
     accounts: store.accounts,
     flows: store.flows,
@@ -75,7 +80,7 @@ export function exportJSON() {
   };
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
-  a.download = `cashflow_v2_${new Date().toISOString().slice(0, 10)}.json`;
+  a.download = `flux_${new Date().toISOString().slice(0, 10)}.json`;
   a.click();
 }
 

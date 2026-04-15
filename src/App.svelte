@@ -40,7 +40,7 @@
 
 <div class="chrome">
   <div class="topbar">
-    <h1>cashflow <em>v2 // flow engine</em></h1>
+    <h1>FLUX <em>v3 // flow engine</em></h1>
     <div class="topbar-r">
       <button onclick={exportJSON}>Export</button>
       <button onclick={() => fileInput.click()}>Import</button>

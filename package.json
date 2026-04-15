@@ -1,7 +1,7 @@
 {
-  "name": "cashflow-engine",
-  "version": "2.0.0",
-  "description": "Personal finance flow-account simulation engine",
+  "name": "flux",
+  "version": "3.0.0",
+  "description": "FLUX — personal finance flow-account simulation engine",
   "private": true,
   "type": "module",
   "scripts": {
