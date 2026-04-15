@@ -1,0 +1,1285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cashflow Engine v2</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600;700&family=Instrument+Sans:wght@400;500;600;700&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root{
+  --bg:#08090c;--s1:#0f1117;--s2:#161922;--s3:#1e222e;--s4:#272c3a;
+  --b1:#2a3040;--b2:#3a4258;--b3:#4a5470;
+  --t1:#e8ecf4;--t2:#a0a8be;--t3:#6a7490;--t4:#4a5268;
+  --grn:#2dd4a8;--grn2:#0a3d2e;--red:#ef6461;--red2:#3d1416;
+  --blu:#5b9cf6;--blu2:#162d54;--amb:#f0b952;--amb2:#3d2e0a;
+  --pur:#9b8afb;--pur2:#2a2254;--cyn:#36d8e0;--cyn2:#0a3438;
+  --pnk:#ec6fa0;--pnk2:#3d1428;
+  --mono:'IBM Plex Mono','SF Mono','Menlo','Consolas',monospace;--sans:'Instrument Sans','SF Pro Display','Segoe UI','Helvetica Neue',sans-serif;
+  --ease:cubic-bezier(0.4,0,0.2,1);
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:var(--sans);background:var(--bg);color:var(--t1);min-height:100vh;}
+.chrome{display:flex;flex-direction:column;height:100vh;}
+.topbar{padding:14px 28px;background:var(--s1);border-bottom:1px solid var(--b1);display:flex;justify-content:space-between;align-items:center;}
+.topbar h1{font-family:var(--mono);font-size:15px;font-weight:600;letter-spacing:-0.3px;}
+.topbar h1 em{font-style:normal;color:var(--t4);font-weight:300;}
+.topbar-r{display:flex;gap:10px;align-items:center;}
+.tabs{display:flex;background:var(--s1);border-bottom:1px solid var(--b1);padding:0 28px;}
+.tab{font-family:var(--mono);font-size:11px;font-weight:500;letter-spacing:0.5px;padding:10px 18px;cursor:pointer;color:var(--t3);border-bottom:2px solid transparent;transition:all 0.15s var(--ease);text-transform:uppercase;}
+.tab:hover{color:var(--t2);}.tab.active{color:var(--grn);border-bottom-color:var(--grn);}
+button{font-family:var(--mono);font-size:11px;font-weight:500;padding:6px 14px;border:1px solid var(--b1);border-radius:4px;cursor:pointer;background:var(--s2);color:var(--t2);transition:all 0.12s var(--ease);}
+button:hover{background:var(--s3);border-color:var(--b2);}
+button.act{background:var(--grn2);border-color:var(--grn);color:var(--grn);}
+button.del{color:var(--red);border-color:transparent;background:transparent;}button.del:hover{background:var(--red2);}
+button.pri{background:var(--blu2);border-color:var(--blu);color:var(--blu);}
+input,select{font-family:var(--mono);font-size:12px;background:var(--s2);border:1px solid var(--b1);color:var(--t1);padding:6px 10px;border-radius:4px;outline:none;}
+input:focus,select:focus{border-color:var(--blu);}
+input[type="number"]{width:110px;}input[type="date"]{width:145px;}select{cursor:pointer;}
+.view{flex:1;overflow:hidden;display:none;}.view.active{display:flex;}
+.ctrl{padding:14px 28px;background:var(--s1);border-bottom:1px solid var(--b1);display:flex;gap:14px;align-items:center;flex-wrap:wrap;}
+.ctrl label{font-size:10px;font-family:var(--mono);color:var(--t3);text-transform:uppercase;letter-spacing:0.4px;margin-right:4px;}
+.kpis{display:grid;gap:1px;background:var(--b1);border-bottom:1px solid var(--b1);}
+.kpi{padding:18px 24px;background:var(--s1);}
+.kpi .k-label{font-size:9px;font-family:var(--mono);text-transform:uppercase;letter-spacing:0.8px;color:var(--t4);margin-bottom:5px;}
+.kpi .k-val{font-family:var(--mono);font-size:20px;font-weight:700;letter-spacing:-0.5px;}
+.kpi .k-sub{font-size:10px;color:var(--t3);margin-top:3px;font-family:var(--mono);}
+.accts-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;padding:24px 28px;}
+.acct-card{background:var(--s1);border:1px solid var(--b1);border-radius:8px;padding:18px;transition:border-color 0.15s;}
+.acct-card:hover{border-color:var(--b2);}
+.acct-card .ac-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;}
+.acct-card .ac-name{font-family:var(--mono);font-size:13px;font-weight:600;}
+.acct-card .ac-type{font-size:9px;font-family:var(--mono);padding:2px 6px;border-radius:3px;text-transform:uppercase;letter-spacing:0.5px;}
+.acct-card .ac-bal{font-family:var(--mono);font-size:22px;font-weight:700;margin:8px 0;}
+.acct-card .ac-proj{font-size:10px;font-family:var(--mono);color:var(--t3);}
+.acct-card .ac-chart{height:60px;margin-top:10px;}
+.acct-card .ac-actions{display:flex;gap:6px;margin-top:10px;}.acct-card .ac-actions button{font-size:10px;padding:3px 8px;}
+.acct-card details[open] .fl-detail-toggle{transform:rotate(90deg);}
+.acct-card details summary::-webkit-details-marker{display:none;}
+.type-checking .ac-type{background:var(--blu2);color:var(--blu);}.type-savings .ac-type{background:var(--grn2);color:var(--grn);}
+.type-retirement .ac-type{background:var(--pur2);color:var(--pur);}.type-brokerage .ac-type{background:var(--amb2);color:var(--amb);}
+.type-crypto .ac-type{background:var(--pnk2);color:var(--pnk);}.type-hsa .ac-type{background:var(--cyn2);color:var(--cyn);}
+.type-income-source .ac-type{background:var(--grn2);color:var(--grn);}
+.type-tax .ac-type{background:var(--red2);color:var(--red);}
+.type-expense .ac-type{background:var(--amb2);color:var(--amb);}
+.type-property .ac-type{background:var(--blu2);color:var(--blu);}
+.type-debt .ac-type{background:var(--red2);color:var(--red);}
+.flows-wrap{flex:1;overflow:auto;padding:0;}
+.flows-toolbar{padding:14px 28px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--b1);background:var(--s1);position:sticky;top:0;z-index:3;}
+.flows-toolbar h3{font-family:var(--mono);font-size:12px;font-weight:500;color:var(--t3);text-transform:uppercase;letter-spacing:0.5px;}
+.fl-table{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:11px;}
+.fl-table thead th{padding:8px 14px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:0.5px;color:var(--t4);font-weight:500;border-bottom:1px solid var(--b1);background:var(--s1);position:sticky;top:46px;z-index:2;}
+.fl-table tbody tr{border-bottom:1px solid var(--b1);transition:background 0.1s;}.fl-table tbody tr:hover{background:var(--s2);}
+.fl-table tbody td{padding:8px 14px;white-space:nowrap;}
+.fl-table .fl-name{font-weight:500;color:var(--t1);}.fl-table .fl-src,.fl-table .fl-dst{color:var(--t2);}
+.fl-table .fl-amt{font-weight:600;text-align:right;}.fl-table .fl-amt.pos{color:var(--grn);}.fl-table .fl-amt.neg{color:var(--red);}
+.fl-table .fl-period{color:var(--t3);}.fl-table .fl-actions{text-align:right;}.fl-table .fl-actions button{font-size:10px;padding:2px 7px;}
+.fl-group-header{padding:10px 14px;background:var(--bg);font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--t3);border-bottom:1px solid var(--b1);cursor:pointer;user-select:none;display:flex;justify-content:space-between;align-items:center;}
+.fl-group-header:hover{background:var(--s2);}
+.fl-group-header .fg-toggle{font-size:9px;color:var(--t4);transition:transform 0.15s;display:inline-block;}
+.fl-group-header .fg-toggle.open{transform:rotate(90deg);}
+.fl-group-header .fg-sum{font-weight:600;}
+.fl-group-header .fg-sum.pos{color:var(--grn);}.fl-group-header .fg-sum.neg{color:var(--red);}
+.dash-scroll{flex:1;overflow-y:auto;}
+.dash-grid{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--b1);}
+.dash-grid>div{background:var(--s1);padding:24px;}.dash-grid .full{grid-column:1/-1;}
+.dash-chart-wrap{height:260px;margin-top:12px;}.dash-chart-wrap.tall{height:340px;}
+.dash-h{font-family:var(--mono);font-size:12px;font-weight:500;color:var(--t3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;}
+.nw-row{display:flex;align-items:center;gap:10px;padding:6px 0;font-family:var(--mono);font-size:11px;border-bottom:1px solid var(--b1);}.nw-row:last-child{border-bottom:none;}
+.nw-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}.nw-name{flex:1;color:var(--t2);}
+.nw-val{font-weight:600;min-width:90px;text-align:right;}.nw-pct{min-width:45px;text-align:right;color:var(--t4);font-size:10px;}
+/* Waterfall */
+.wf-row{display:flex;align-items:center;gap:10px;padding:5px 0;font-family:var(--mono);font-size:11px;border-bottom:1px solid var(--b1);}.wf-row:last-child{border-bottom:none;}
+.wf-label{width:110px;flex-shrink:0;color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.wf-bar-wrap{flex:1;height:16px;background:var(--s2);border-radius:3px;overflow:hidden;}.wf-bar{height:100%;border-radius:3px;transition:width 0.4s;}
+.wf-val{width:90px;text-align:right;font-weight:600;flex-shrink:0;}.wf-pct{width:45px;text-align:right;color:var(--t4);font-size:10px;flex-shrink:0;}
+.wf-row.wf-total{border-top:2px solid var(--b2);margin-top:4px;padding-top:8px;font-weight:700;}
+.modal-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.65);display:flex;align-items:center;justify-content:center;z-index:100;}
+.modal{background:var(--s1);border:1px solid var(--b1);border-radius:8px;padding:24px;width:500px;max-width:92vw;max-height:88vh;overflow-y:auto;}
+.modal h3{font-family:var(--mono);font-size:14px;margin-bottom:16px;}
+.modal .fr{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;}
+.modal .fr.full{grid-template-columns:1fr;}.modal .fr.triple{grid-template-columns:1fr 1fr 1fr;}
+.modal label{display:block;font-size:9px;font-family:var(--mono);color:var(--t4);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:3px;}
+.modal input,.modal select{width:100%;}
+.modal .mf{display:flex;justify-content:flex-end;gap:10px;margin-top:16px;}
+::-webkit-scrollbar{width:5px;}::-webkit-scrollbar-track{background:var(--bg);}::-webkit-scrollbar-thumb{background:var(--b1);border-radius:3px;}
+.chip{font-family:var(--mono);font-size:9px;padding:2px 8px;border-radius:3px;cursor:pointer;border:1px solid var(--b1);background:var(--s2);color:var(--t3);transition:all 0.12s;user-select:none;white-space:nowrap;}
+.chip:hover{border-color:var(--b2);}.chip.on{border-color:var(--grn);color:var(--grn);background:var(--grn2);}
+.sb-filter{font-family:var(--mono);font-size:9px;padding:2px 8px;border-radius:3px;cursor:pointer;border:1px solid var(--b1);background:var(--s2);color:var(--t3);transition:all 0.12s;user-select:none;}
+.sb-filter:hover{border-color:var(--b2);}.sb-filter.active{border-color:var(--grn);color:var(--grn);background:var(--grn2);}
+.sched-tbl{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:10px;}.sched-tbl th{padding:5px 8px;text-align:right;font-size:8px;text-transform:uppercase;letter-spacing:0.4px;color:var(--t4);font-weight:500;border-bottom:1px solid var(--b1);position:sticky;top:0;background:var(--s1);}.sched-tbl th:first-child{text-align:left;}.sched-tbl td{padding:4px 8px;text-align:right;border-bottom:1px solid var(--b1);color:var(--t2);}.sched-tbl td:first-child{text-align:left;color:var(--t3);}.sched-tbl tr:hover{background:var(--s2);}
+@media(max-width:800px){.accts-grid{grid-template-columns:1fr;}.dash-grid{grid-template-columns:1fr;}.kpis{grid-template-columns:repeat(2,1fr);}}
+</style>
+</head>
+<body>
+<div class="chrome">
+  <div class="topbar">
+    <h1>cashflow <em>v2 // flow engine</em></h1>
+    <div class="topbar-r"><button onclick="exportJSON()">Export</button><button onclick="document.getElementById('impF').click()">Import</button><input type="file" id="impF" accept=".json" style="display:none" onchange="doImport(event)"></div>
+  </div>
+  <div class="tabs">
+    <div class="tab active" onclick="openView('dashboard',this)">Dashboard</div>
+    <div class="tab" onclick="openView('accounts',this)">Accounts</div>
+    <div class="tab" onclick="openView('flows',this)">Flows</div>
+    <div class="tab" onclick="openView('graph',this)">Graph</div>
+  </div>
+
+  <!-- Dashboard -->
+  <div class="view active" id="v-dashboard" style="flex-direction:column;overflow:hidden;">
+    <div class="ctrl">
+      <label>Start</label><input type="date" id="cfgStart" value="2026-04-13">
+      <label>Project</label><select id="cfgMonths"><option value="3">3 mo</option><option value="6" selected>6 mo</option><option value="12">1 yr</option><option value="24">2 yr</option><option value="60">5 yr</option><option value="120">10 yr</option><option value="180">15 yr</option><option value="360">30 yr</option><option value="600">50 yr</option></select>
+      <button class="pri" onclick="simulate()">Run Simulation</button>
+    </div>
+    <div class="kpis" id="dashKpis" style="grid-template-columns:repeat(5,1fr);"></div>
+    <div class="dash-scroll"><div class="dash-grid">
+      <div class="full">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+          <div class="dash-h" style="margin:0;">Balance over time</div>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <select id="chartMode" onchange="renderNWChart()" style="font-size:10px;padding:3px 6px;width:auto;"><option value="lines">Individual lines</option><option value="stacked">Stacked area (NW)</option></select>
+            <div style="position:relative;" id="acctPickerWrap">
+              <button id="acctPickerBtn" onclick="toggleAcctPicker()" style="font-size:10px;padding:4px 10px;min-width:130px;text-align:left;"><span id="acctPickerLabel">1 account</span> <span style="float:right;color:var(--t4);">▾</span></button>
+              <div id="acctPickerDrop" style="display:none;position:absolute;right:0;top:100%;margin-top:4px;background:var(--s1);border:1px solid var(--b2);border-radius:6px;padding:6px 0;z-index:20;min-width:220px;max-height:320px;overflow-y:auto;">
+                <div style="padding:4px 12px 8px;display:flex;gap:6px;border-bottom:1px solid var(--b1);margin-bottom:4px;">
+                  <button onclick="chartSelectAll()" style="font-size:9px;padding:2px 6px;">All</button>
+                  <button onclick="chartSelectNone()" style="font-size:9px;padding:2px 6px;">None</button>
+                  <button onclick="chartSelectPreset('liquid')" style="font-size:9px;padding:2px 6px;">Liquid</button>
+                  <button onclick="chartSelectPreset('nw')" style="font-size:9px;padding:2px 6px;">Net Worth</button>
+                </div>
+                <div id="acctPickerList"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="dash-chart-wrap tall"><canvas id="nwChart"></canvas></div>
+      </div>
+      <div><div class="dash-h">Account balances (end of period)</div><div id="nwBreakdown"></div></div>
+      <div><div class="dash-h">Monthly cash flow (checking)</div><div class="dash-chart-wrap"><canvas id="cfBarChart"></canvas></div></div>
+      <div><div class="dash-h">Income waterfall (per group)</div><div id="waterfallView"></div></div>
+      <div><div class="dash-h">Expense breakdown</div><div id="expenseBreakdown"></div></div>
+      <div><div class="dash-h">Linked positions (debt → asset)</div><div id="linkedPositions"></div></div>
+      <div><div class="dash-h">Portfolio by type</div><div id="groupedPositions"></div></div>
+    </div></div>
+  </div>
+
+  <!-- Accounts -->
+  <div class="view" id="v-accounts" style="flex-direction:column;overflow:hidden;">
+    <div class="ctrl"><button class="act" onclick="showAcctModal()">+ Add Account</button></div>
+    <div style="padding:10px 28px;border-bottom:1px solid var(--b1);background:var(--s1);display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+      <input type="text" id="acctSearch" placeholder="Search accounts..." oninput="renderAccounts()" style="width:180px;font-size:12px;padding:6px 10px;">
+      <div style="display:flex;gap:3px;flex-wrap:wrap;" id="acctTypeChips"></div>
+      <div style="margin-left:auto;display:flex;gap:8px;align-items:center;">
+        <select id="acctShowMode" onchange="renderAccounts()" style="font-size:10px;padding:3px 6px;width:auto;"><option value="all">All</option><option value="internal">Internal only</option><option value="external">External only</option></select>
+        <select id="acctSort" onchange="renderAccounts()" style="font-size:10px;padding:3px 6px;width:auto;">
+          <option value="type">Type</option>
+          <option value="balance-desc">Balance ↓</option>
+          <option value="balance-asc">Balance ↑</option>
+          <option value="name-asc">Name A-Z</option>
+          <option value="projected-desc">Projected ↓</option>
+          <option value="rate-desc">Rate ↓</option>
+        </select>
+      </div>
+    </div>
+    <div class="accts-grid" id="acctsGrid" style="overflow-y:auto;flex:1;"></div>
+  </div>
+
+  <!-- Flows -->
+  <div class="view" id="v-flows" style="flex-direction:column;overflow:hidden;">
+    <div class="flows-wrap">
+      <div class="flows-toolbar"><h3 id="flowsTitle">Flows</h3><button class="act" onclick="showFlowModal()">+ Add Flow</button></div>
+      <div style="padding:10px 28px 10px;border-bottom:1px solid var(--b1);background:var(--s1);display:flex;flex-direction:column;gap:8px;">
+        <input type="text" id="flowSearch" placeholder="Search flows..." oninput="renderFlows()" style="width:100%;font-size:12px;padding:6px 10px;">
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <div style="display:flex;gap:3px;flex-wrap:wrap;" id="flowCatChips"></div>
+          <div style="margin-left:auto;display:flex;gap:8px;align-items:center;">
+            <select id="flowGroupFilter" onchange="renderFlows()" style="font-size:10px;padding:3px 6px;width:auto;"><option value="">All groups</option></select>
+            <select id="flowAcctFilter" onchange="renderFlows()" style="font-size:10px;padding:3px 6px;width:auto;"><option value="">All accounts</option></select>
+            <select id="flowSort" onchange="renderFlows()" style="font-size:10px;padding:3px 6px;width:auto;">
+              <option value="group">Group</option>
+              <option value="amount-desc">Amount ↓</option>
+              <option value="amount-asc">Amount ↑</option>
+              <option value="name-asc">Name A-Z</option>
+              <option value="name-desc">Name Z-A</option>
+              <option value="category">Category</option>
+              <option value="from">Source</option>
+              <option value="to">Destination</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div id="flowsContent" style="overflow-y:auto;flex:1;"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Graph -->
+  <div class="view" id="v-graph" style="flex-direction:column;overflow:hidden;">
+    <div class="ctrl" id="graphCtrl">
+      <label>Show</label>
+      <select id="graphShowMode" onchange="renderGraph()"><option value="all">All flows</option><option value="enabled">Enabled only</option></select>
+      <label style="margin-left:12px;display:flex;align-items:center;gap:4px;cursor:pointer;font-size:11px;color:var(--t1);"><input type="checkbox" id="graphShowLabels" checked onchange="renderGraph()"> Amounts</label>
+      <button onclick="resetGraphLayout()" style="margin-left:auto;">Reset layout</button>
+    </div>
+    <canvas id="graphCanvas" style="display:block;cursor:grab;width:100%;height:calc(100vh - 140px);"></canvas>
+    <div id="graphTooltip" style="display:none;position:fixed;background:var(--s2);border:1px solid var(--b2);border-radius:6px;padding:10px 14px;font-family:var(--mono);font-size:11px;pointer-events:none;z-index:10;max-width:260px;"></div>
+  </div>
+
+<!-- Schedule Modal -->
+<div class="modal-overlay" id="schedModal" style="display:none" onclick="if(event.target===this)closeSchedule()">
+  <div class="modal" style="width:640px;">
+    <h3 id="schedTitle">Account Schedule</h3>
+    <div id="schedSummary" style="font-family:var(--mono);font-size:11px;color:var(--t2);margin-bottom:12px;"></div>
+    <div id="schedTable" style="max-height:400px;overflow-y:auto;"></div>
+    <div class="mf"><button onclick="closeSchedule()">Close</button></div>
+  </div>
+</div>
+
+<!-- Account Modal -->
+<div class="modal-overlay" id="acctModal" style="display:none" onclick="if(event.target===this)closeAcctModal()">
+  <div class="modal">
+    <h3 id="amTitle">Add account</h3>
+    <div class="fr"><div><label>Name</label><input id="amName"></div><div><label>Type</label><select id="amType"><option value="checking">Checking</option><option value="savings">Savings</option><option value="retirement">Retirement</option><option value="hsa">HSA</option><option value="brokerage">Brokerage</option><option value="crypto">Crypto</option><option value="property">Property (Equity)</option><option value="debt">Debt (Liability)</option><option value="income-source">Income Source</option><option value="tax">Tax</option><option value="expense">Expense</option></select></div></div>
+    <div class="fr"><div><label>Starting Balance</label><input type="number" id="amBal" step="0.01"></div><div><label>As of Date</label><input type="date" id="amDate"></div></div>
+    <div class="fr"><div><label>Annual Rate %</label><input type="number" id="amRate" step="0.01" placeholder="0"><div style="font-size:9px;color:var(--t4);font-family:var(--mono);margin-top:2px;">Growth for assets, APR for debt</div></div><div style="display:flex;flex-direction:column;gap:8px;padding-top:18px;"><label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:11px;color:var(--t1);margin-bottom:0;"><input type="checkbox" id="amExt"> External (tally only)</label><label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:11px;color:var(--t1);margin-bottom:0;"><input type="checkbox" id="amZeroCap"> Cap at zero</label><div style="font-size:9px;color:var(--t4);font-family:var(--mono);">Prevents balance from crossing $0</div></div></div>
+    <div class="fr"><div><label>Linked to (asset for debt)</label><select id="amLinked"><option value="">None</option></select><div style="font-size:9px;color:var(--t4);font-family:var(--mono);margin-top:2px;">Links debt to its funded asset</div></div><div></div></div>
+    <div class="mf"><button onclick="closeAcctModal()">Cancel</button><button class="pri" onclick="saveAcct()" id="amSave">Add</button></div>
+  </div>
+</div>
+
+<!-- Flow Modal -->
+<div class="modal-overlay" id="flowModal" style="display:none" onclick="if(event.target===this)closeFlowModal()">
+  <div class="modal">
+    <h3 id="fmTitle">Add flow</h3>
+    <div class="fr full"><div><label>Name</label><input id="fmName" placeholder="e.g. Boeing Net Pay"></div></div>
+    <div class="fr"><div><label>From</label><select id="fmFrom"></select></div><div><label>To</label><select id="fmTo"></select></div></div>
+    <div class="fr"><div><label>Amount</label><input type="number" id="fmAmt" step="0.01"></div><div><label>Period</label><select id="fmPeriod"><option value="once">One-Time</option><option value="7">Weekly</option><option value="14">Biweekly</option><option value="semi-monthly">Semi-Monthly</option><option value="monthly" selected>Monthly</option><option value="quarterly">Quarterly</option><option value="annual">Annual</option></select></div></div>
+    <div class="fr"><div><label>Start Date</label><input type="date" id="fmStart"></div><div><label>End Date (opt)</label><input type="date" id="fmEnd"></div></div>
+    <div class="fr triple"><div><label>Category</label><select id="fmCat" onchange="onFlowCatChange()"></select><div id="newFlowCatRow" style="display:none;margin-top:6px;"><div style="display:flex;gap:6px;"><input type="text" id="newFlowCatInput" placeholder="e.g. Medical" style="flex:1;font-size:11px;padding:4px 8px;"><button type="button" onclick="confirmNewFlowCat()" style="font-size:10px;padding:3px 8px;" class="act">Add</button><button type="button" onclick="cancelNewFlowCat()" style="font-size:10px;padding:3px 8px;">✕</button></div></div></div>
+    <div><label>Group (opt)</label><input id="fmGroup" placeholder="e.g. boeing, diraq"></div>
+    <div style="display:flex;align-items:flex-end;padding-bottom:4px;"><label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:11px;color:var(--t1);"><input type="checkbox" id="fmEnabled" checked> Enabled</label></div></div>
+    <div class="mf"><button onclick="closeFlowModal()">Cancel</button><button class="pri" onclick="saveFlow()" id="fmSave">Add</button></div>
+  </div>
+</div>
+
+<script>
+let accounts=[
+  // Internal accounts (contribute to net worth)
+  {id:'a-chk',name:'Chase Checking',type:'checking',balance:12425.41,asOf:'2026-04-13',external:false,annualRate:0},
+  {id:'a-sav',name:'Savings',type:'savings',balance:6.71,asOf:'2026-04-13',external:false,annualRate:0.045},
+  {id:'a-401b',name:'Boeing 401(k)',type:'retirement',balance:37967.41,asOf:'2026-04-13',external:false,annualRate:0.08},
+  {id:'a-roth',name:'Roth IRA',type:'retirement',balance:4065.19,asOf:'2026-04-13',external:false,annualRate:0.08},
+  {id:'a-crypto',name:'Crypto',type:'crypto',balance:25282.84,asOf:'2026-04-13',external:false,annualRate:0},
+  // Real estate — single account: equity minus outstanding = net position
+  {id:'a-property',name:'WeHo Condo (Market)',type:'property',balance:775500,asOf:'2026-04-13',external:false,annualRate:0.02,acctGroup:'weho-real-estate'},
+  // Mortgage — debt that accrues interest
+  {id:'a-mortgage',name:'Mortgage (Doheny)',type:'debt',balance:-629000,asOf:'2026-04-13',external:false,annualRate:0.0325,zeroCap:true,linkedTo:'a-property',acctGroup:'weho-real-estate'},
+  // Consumer debt (negative balances, with APR)
+  {id:'a-chase-debt',name:'Chase Freedom',type:'debt',balance:-849.04,asOf:'2026-04-13',external:false,annualRate:0.2299,zeroCap:true},
+  {id:'a-chase-prime',name:'Chase Prime',type:'debt',balance:-1229.42,asOf:'2026-04-13',external:false,annualRate:0.2499,zeroCap:true},
+  {id:'a-discover-debt',name:'Discover Card',type:'debt',balance:-141.00,asOf:'2026-04-13',external:false,annualRate:0.2449,zeroCap:true},
+  {id:'a-discover-loan',name:'Discover Loan',type:'debt',balance:0,asOf:'2026-04-13',external:false,annualRate:0.0899,zeroCap:true},
+  {id:'a-amex-debt',name:'Amex',type:'debt',balance:-589.49,asOf:'2026-04-13',external:false,annualRate:0.2174,zeroCap:true},
+  {id:'a-tacoma',name:'Tacoma Loan',type:'debt',balance:0,asOf:'2026-04-13',external:false,annualRate:0.049,zeroCap:true},
+  {id:'a-rh-gold',name:'Robinhood Gold',type:'debt',balance:-12035.86,asOf:'2026-04-13',external:false,annualRate:0.0575,zeroCap:true},
+  // External accounts (cumulative tallies)
+  {id:'x-boeing',name:'Boeing Payroll',type:'income-source',balance:0,asOf:'2026-04-13',external:true,annualRate:0},
+  {id:'x-diraq',name:'Diraq Payroll',type:'income-source',balance:0,asOf:'2026-04-13',external:true,annualRate:0},
+  {id:'x-fedtax',name:'Federal Tax',type:'tax',balance:0,asOf:'2026-04-13',external:true,annualRate:0},
+  {id:'x-statetax',name:'State Tax',type:'tax',balance:0,asOf:'2026-04-13',external:true,annualRate:0},
+  {id:'x-fica',name:'FICA',type:'tax',balance:0,asOf:'2026-04-13',external:true,annualRate:0},
+  {id:'x-benefits',name:'Benefits',type:'expense',balance:0,asOf:'2026-04-13',external:true,annualRate:0},
+  {id:'x-escrow',name:'Escrow / Prop Tax',type:'expense',balance:0,asOf:'2026-04-13',external:true,annualRate:0},
+  {id:'x-hoa',name:'HOA',type:'expense',balance:0,asOf:'2026-04-13',external:true,annualRate:0},
+  {id:'x-insurance',name:'Insurance',type:'expense',balance:0,asOf:'2026-04-13',external:true,annualRate:0},
+  {id:'x-util',name:'Utilities',type:'expense',balance:0,asOf:'2026-04-13',external:true,annualRate:0},
+  {id:'x-subs',name:'Subscriptions',type:'expense',balance:0,asOf:'2026-04-13',external:true,annualRate:0},
+];
+
+let flows=[
+  // Boeing (group: boeing)
+  {id:'f-b1',name:'Boeing Net Pay',from:'x-boeing',to:'a-chk',amount:5138.13,period:'14',start:'2024-10-22',end:null,category:'income',group:'boeing',enabled:true},
+  {id:'f-b2',name:'Boeing Federal Tax',from:'x-boeing',to:'x-fedtax',amount:3200,period:'14',start:'2024-10-22',end:null,category:'tax',group:'boeing',enabled:true},
+  {id:'f-b3',name:'Boeing State Tax',from:'x-boeing',to:'x-statetax',amount:1400,period:'14',start:'2024-10-22',end:null,category:'tax',group:'boeing',enabled:true},
+  {id:'f-b4',name:'Boeing FICA',from:'x-boeing',to:'x-fica',amount:581,period:'14',start:'2024-10-22',end:null,category:'tax',group:'boeing',enabled:true},
+  {id:'f-b5',name:'Boeing Benefits',from:'x-boeing',to:'x-benefits',amount:214.12,period:'14',start:'2024-10-22',end:null,category:'benefits',group:'boeing',enabled:true},
+  {id:'f-b6',name:'Boeing 401(k)',from:'x-boeing',to:'a-401b',amount:0,period:'14',start:'2024-10-22',end:null,category:'retirement-contrib',group:'boeing',enabled:true},
+
+  // Diraq (group: diraq)
+  {id:'f-d1',name:'Diraq Net Pay',from:'x-diraq',to:'a-chk',amount:4928.13,period:'semi-monthly',start:'2026-05-15',end:null,category:'income',group:'diraq',enabled:true},
+  {id:'f-d2',name:'Diraq Federal Tax',from:'x-diraq',to:'x-fedtax',amount:2800,period:'semi-monthly',start:'2026-05-15',end:null,category:'tax',group:'diraq',enabled:true},
+  {id:'f-d3',name:'Diraq State Tax',from:'x-diraq',to:'x-statetax',amount:420,period:'semi-monthly',start:'2026-05-15',end:null,category:'tax',group:'diraq',enabled:true},
+  {id:'f-d4',name:'Diraq FICA',from:'x-diraq',to:'x-fica',amount:530,period:'semi-monthly',start:'2026-05-15',end:null,category:'tax',group:'diraq',enabled:true},
+  {id:'f-d5',name:'Diraq Benefits',from:'x-diraq',to:'x-benefits',amount:214.12,period:'semi-monthly',start:'2026-05-15',end:null,category:'benefits',group:'diraq',enabled:true},
+  {id:'f-d6',name:'Diraq 401(k)',from:'x-diraq',to:'a-401b',amount:0,period:'semi-monthly',start:'2026-05-15',end:null,category:'retirement-contrib',group:'diraq',enabled:true},
+
+  // Mortgage (group: mortgage) — P&I is one flow, interest computed by rate
+  {id:'f-m1',name:'Mortgage P&I',from:'a-chk',to:'a-mortgage',amount:2976.81,period:'monthly',start:'2022-08-01',end:null,category:'housing',group:'mortgage',enabled:true},
+  {id:'f-m3',name:'Escrow / Prop Tax',from:'a-chk',to:'x-escrow',amount:808.75,period:'monthly',start:'2022-08-01',end:null,category:'housing',group:'mortgage',enabled:true},
+  {id:'f-m4',name:'HOA',from:'a-chk',to:'x-hoa',amount:517,period:'monthly',start:'2022-08-01',end:null,category:'housing',group:'mortgage',enabled:true},
+
+  // Auto
+  {id:'f-2',name:'Tacoma Payment',from:'a-chk',to:'a-tacoma',amount:856.83,period:'monthly',start:'2025-05-06',end:'2031-05-06',category:'auto',group:null,enabled:true},
+  {id:'f-3',name:'Auto Insurance',from:'a-chk',to:'x-insurance',amount:388.94,period:'monthly',start:'2022-09-08',end:null,category:'insurance',group:null,enabled:true},
+  {id:'f-4',name:'Home Insurance',from:'a-chk',to:'x-insurance',amount:108.25,period:'monthly',start:'2022-09-10',end:null,category:'insurance',group:null,enabled:true},
+
+  // Debt payments — flow into debt accounts (reduces negative balance)
+  {id:'f-5',name:'Discover Card Payment',from:'a-chk',to:'a-discover-debt',amount:227,period:'monthly',start:'2024-05-06',end:null,category:'debt',group:null,enabled:true},
+  {id:'f-6',name:'Discover Loan Payment',from:'a-chk',to:'a-discover-loan',amount:234.02,period:'monthly',start:'2024-11-07',end:null,category:'debt',group:null,enabled:true},
+  {id:'f-7',name:'Citi Card Payment',from:'a-chk',to:'a-amex-debt',amount:302.65,period:'monthly',start:'2024-04-23',end:null,category:'debt',group:null,enabled:true},
+  {id:'f-8',name:'Chase Card Payment',from:'a-chk',to:'a-chase-debt',amount:574.61,period:'monthly',start:'2022-09-26',end:null,category:'debt',group:null,enabled:true},
+
+  // Utilities & subscriptions
+  {id:'f-9',name:'Phone Bill',from:'a-chk',to:'x-util',amount:145.63,period:'monthly',start:'2024-03-28',end:null,category:'utility',group:null,enabled:true},
+  {id:'f-10',name:'Spotify',from:'a-chk',to:'x-subs',amount:11.99,period:'monthly',start:'2022-08-25',end:null,category:'subscription',group:null,enabled:true},
+  {id:'f-11',name:'Proton',from:'a-chk',to:'x-subs',amount:11.99,period:'monthly',start:'2022-08-25',end:null,category:'subscription',group:null,enabled:true},
+];
+
+let simData=null,nwChart=null,cfBarChart=null,acctCharts={};
+let editAcctId=null,editFlowId=null,nextNum=200;
+let expandedGroups=new Set();
+function nid(p){return p+'-'+(nextNum++);}
+
+const ACCT_COLORS={checking:'#5b9cf6',savings:'#2dd4a8',retirement:'#9b8afb',hsa:'#36d8e0',brokerage:'#f0b952',crypto:'#ec6fa0',property:'#5b9cf6',debt:'#ef6461','income-source':'#2dd4a8',tax:'#ef6461',expense:'#f0b952',external:'#6a7490'};
+const TYPE_LABELS={checking:'Checking',savings:'Savings',retirement:'Retirement',hsa:'HSA',brokerage:'Brokerage',crypto:'Crypto',property:'Property',debt:'Debt','income-source':'Income Source',tax:'Tax',expense:'Expense'};
+const PER_LABELS={once:'One-Time','7':'Weekly','14':'Biweekly','semi-monthly':'Semi-Mo',monthly:'Monthly',quarterly:'Quarterly',annual:'Annual'};
+const CAT_COLORS={income:'#2dd4a8',tax:'#ef6461',benefits:'#f0b952','retirement-contrib':'#9b8afb',housing:'#5b9cf6',auto:'#ef6461',insurance:'#f0b952',debt:'#9b8afb',utility:'#36d8e0',subscription:'#ec6fa0',transfer:'#6a7490',savings:'#2dd4a8',investment:'#f0b952',other:'#6a7490'};
+
+function openView(id,el){document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));document.getElementById('v-'+id).classList.add('active');el.classList.add('active');if(id==='accounts')renderAccounts();if(id==='flows')renderFlows();if(id==='dashboard'&&simData)renderDashboard();if(id==='graph')initGraph();}
+
+// ═══════ ENGINE ═══════
+function parseDate(s){if(!s)return null;const[y,m,d]=s.split('-').map(Number);return new Date(y,m-1,d);}
+function fmtD(d){return`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;}
+function addDays(d,n){const r=new Date(d);r.setDate(r.getDate()+n);return r;}
+function daysBetween(a,b){return Math.round((b-a)/86400000);}
+
+function getOccurrences(start,end,period,evStart,evEnd){
+  const occ=[];const s=parseDate(evStart);const e=evEnd?parseDate(evEnd):null;if(!s)return occ;
+  if(period==='once'){if(s>=start&&s<=end)occ.push(new Date(s));return occ;}
+  if(period==='monthly'){const dom=s.getDate();let c=new Date(start.getFullYear(),start.getMonth(),dom);if(c<start)c.setMonth(c.getMonth()+1);while(c<=end){if(c>=s&&(!e||c<=e))occ.push(new Date(c));c.setMonth(c.getMonth()+1);if(c.getDate()!==dom)c.setDate(0);}}
+  else if(period==='semi-monthly'){const d1=15,d2=s.getDate();const ds=d1===d2?[1,15]:[d1,d2];let c=new Date(start.getFullYear(),start.getMonth(),1);while(c<=end){const m=c.getMonth(),y=c.getFullYear();ds.forEach(day=>{const dt=new Date(y,m,Math.min(day,new Date(y,m+1,0).getDate()));if(dt>=start&&dt<=end&&dt>=s&&(!e||dt<=e))occ.push(dt);});c.setMonth(c.getMonth()+1);}}
+  else if(period==='quarterly'){let c=new Date(s);while(c<=end){if(c>=start&&(!e||c<=e))occ.push(new Date(c));c.setMonth(c.getMonth()+3);}}
+  else if(period==='annual'){let c=new Date(s);while(c<=end){if(c>=start&&(!e||c<=e))occ.push(new Date(c));c.setFullYear(c.getFullYear()+1);}}
+  else{const days=parseInt(period);if(isNaN(days)||days<=0)return occ;let c=new Date(s);if(c<start){const gap=daysBetween(c,start);c=addDays(c,Math.floor(gap/days)*days);if(c<start)c=addDays(c,days);}while(c<=end){if(!e||c<=e)occ.push(new Date(c));c=addDays(c,days);}}
+  return occ;
+}
+
+function simulate(){
+  const startDate=parseDate(document.getElementById('cfgStart').value);
+  const months=parseInt(document.getElementById('cfgMonths').value);
+  const endDate=new Date(startDate);endDate.setMonth(endDate.getMonth()+months);
+  const totalDays=daysBetween(startDate,endDate);
+  const balances={};accounts.forEach(a=>{balances[a.id]=a.external?0:a.balance;});
+  const allTransfers=[];
+
+  // All flows are first-class
+  flows.filter(f=>f.enabled).forEach(f=>{
+    getOccurrences(startDate,endDate,f.period,f.start,f.end).forEach(d=>{
+      allTransfers.push({date:d,name:f.name,from:f.from,to:f.to,amount:f.amount,category:f.category,group:f.group,flowId:f.id});
+    });
+  });
+
+  allTransfers.sort((a,b)=>a.date-b.date);
+  let tIdx=0;
+
+  const cents=v=>Math.round(v*100)/100;
+
+  // Build rate lookup for accounts with non-zero annual rate
+  const rateAccts=accounts.filter(a=>a.annualRate&&a.annualRate!==0&&!a.external);
+  let lastCompoundMonth=-1;
+
+  // Build zeroCap lookup
+  const zeroCapIds=new Set(accounts.filter(a=>a.zeroCap).map(a=>a.id));
+
+  const internalIds=new Set(accounts.filter(a=>!a.external).map(a=>a.id));
+  const chkId=accounts.find(a=>a.type==='checking'&&!a.external)?.id;
+  let minBal=chkId?balances[chkId]:Infinity,minBalDate=startDate;
+  const monthlySnapshots=[];
+  let lastSnapMonth='';
+
+  for(let i=0;i<=totalDays;i++){
+    const date=addDays(startDate,i);const ds=fmtD(date);
+
+    // Monthly compounding on the 1st of each month
+    const thisMonth=date.getFullYear()*12+date.getMonth();
+    if(date.getDate()===1&&thisMonth!==lastCompoundMonth&&i>0){
+      lastCompoundMonth=thisMonth;
+      rateAccts.forEach(a=>{
+        if(balances[a.id]===undefined||balances[a.id]===0)return;
+        const interest=cents(balances[a.id]*(a.annualRate/12));
+        let newBal=cents(balances[a.id]+interest);
+        if(zeroCapIds.has(a.id)){
+          if(balances[a.id]<0&&newBal>0)newBal=0;
+          else if(balances[a.id]>0&&newBal<0)newBal=0;
+        }
+        balances[a.id]=newBal;
+      });
+    }
+
+    // Apply transfers for this day
+    while(tIdx<allTransfers.length&&fmtD(allTransfers[tIdx].date)===ds){
+      const t=allTransfers[tIdx];
+      let amt=cents(t.amount);
+
+      // Zero-cap on destination
+      if(zeroCapIds.has(t.to)&&balances[t.to]!==undefined){
+        if(balances[t.to]===0){amt=0;}
+        else{
+          const newBal=cents(balances[t.to]+amt);
+          if(balances[t.to]<0&&newBal>0)amt=cents(-balances[t.to]);
+          else if(balances[t.to]>0&&newBal<0)amt=cents(balances[t.to]);
+        }
+      }
+
+      // Zero-cap on source
+      if(zeroCapIds.has(t.from)&&balances[t.from]!==undefined){
+        if(balances[t.from]===0){amt=0;}
+        else{
+          const newBal=cents(balances[t.from]-amt);
+          if(balances[t.from]>0&&newBal<0)amt=cents(balances[t.from]);
+          else if(balances[t.from]<0&&newBal>0)amt=cents(-balances[t.from]);
+        }
+      }
+
+      if(balances[t.from]!==undefined)balances[t.from]=cents(balances[t.from]-amt);
+      if(balances[t.to]!==undefined)balances[t.to]=cents(balances[t.to]+amt);
+      tIdx++;
+    }
+
+    // Track checking min
+    if(chkId&&balances[chkId]<minBal){minBal=balances[chkId];minBalDate=date;}
+
+    // Monthly snapshot (last day of each month)
+    const mk=date.getFullYear()+'-'+String(date.getMonth()+1).padStart(2,'0');
+    if(mk!==lastSnapMonth){
+      if(lastSnapMonth)monthlySnapshots.push({month:lastSnapMonth,date:addDays(date,-1),balances:{...balances},netWorth:Object.entries(balances).filter(([id])=>internalIds.has(id)).reduce((s,[,v])=>s+v,0)});
+      lastSnapMonth=mk;
+    }
+  }
+  // Final snapshot
+  if(lastSnapMonth)monthlySnapshots.push({month:lastSnapMonth,date:endDate,balances:{...balances},netWorth:Object.entries(balances).filter(([id])=>internalIds.has(id)).reduce((s,[,v])=>s+v,0)});
+
+  simData={allTransfers,monthlySnapshots,startDate,endDate,minBal,minBalDate,finalBalances:{...balances}};
+  renderDashboard();renderAccounts();saveLS();
+}
+
+// ═══════ DASHBOARD ═══════
+
+// Chart account selection — default to checking only
+let chartSelectedAccts=new Set(['a-chk']);
+
+function toggleChartAcct(id){
+  if(chartSelectedAccts.has(id))chartSelectedAccts.delete(id);
+  else chartSelectedAccts.add(id);
+  renderAcctPicker();renderNWChart();
+}
+
+function renderAcctPicker(){
+  const list=document.getElementById('acctPickerList');
+  if(!list)return;
+  const internal=accounts.filter(a=>!a.external);
+  list.innerHTML=internal.map(a=>{
+    const on=chartSelectedAccts.has(a.id);
+    const col=ACCT_COLORS[a.type]||'#6a7490';
+    return`<label style="display:flex;align-items:center;gap:8px;padding:5px 12px;cursor:pointer;font-family:var(--mono);font-size:11px;color:${on?'var(--t1)':'var(--t3)'};transition:background 0.1s;" onmouseenter="this.style.background='var(--s2)'" onmouseleave="this.style.background='transparent'"><input type="checkbox" ${on?'checked':''} onchange="toggleChartAcct('${a.id}')"><span style="width:8px;height:8px;border-radius:50%;background:${col};flex-shrink:0;"></span>${a.name}<span style="margin-left:auto;font-size:9px;color:var(--t4);">${TYPE_LABELS[a.type]||a.type}</span></label>`;
+  }).join('');
+  // Update button label
+  const n=chartSelectedAccts.size;
+  document.getElementById('acctPickerLabel').textContent=n===0?'No accounts':n===1?'1 account':n+' accounts';
+}
+
+function toggleAcctPicker(){
+  const drop=document.getElementById('acctPickerDrop');
+  drop.style.display=drop.style.display==='none'?'block':'none';
+}
+
+function chartSelectAll(){accounts.filter(a=>!a.external).forEach(a=>chartSelectedAccts.add(a.id));renderAcctPicker();renderNWChart();}
+function chartSelectNone(){chartSelectedAccts.clear();renderAcctPicker();renderNWChart();}
+function chartSelectPreset(p){
+  chartSelectedAccts.clear();
+  if(p==='liquid')accounts.filter(a=>!a.external&&(a.type==='checking'||a.type==='savings')).forEach(a=>chartSelectedAccts.add(a.id));
+  else if(p==='nw')accounts.filter(a=>!a.external).forEach(a=>chartSelectedAccts.add(a.id));
+  renderAcctPicker();renderNWChart();
+}
+
+// Close picker when clicking outside
+document.addEventListener('click',e=>{const wrap=document.getElementById('acctPickerWrap');if(wrap&&!wrap.contains(e.target)){document.getElementById('acctPickerDrop').style.display='none';}});
+
+function renderNWChart(){
+  if(!simData)return;
+  if(nwChart)nwChart.destroy();
+  const snaps=simData.monthlySnapshots;
+  const projMonths=parseInt(document.getElementById('cfgMonths').value);
+  const labels=snaps.map(s=>projMonths>120?s.date.getFullYear().toString():s.date.toLocaleDateString('en-US',{month:'short',year:'2-digit'}));
+  const mode=document.getElementById('chartMode').value;
+  const selected=accounts.filter(a=>!a.external&&chartSelectedAccts.has(a.id));
+
+  let datasets;
+  if(mode==='stacked'){
+    datasets=selected.map(a=>({label:a.name,data:snaps.map(s=>s.balances[a.id]||0),backgroundColor:ACCT_COLORS[a.type]+'20',borderColor:ACCT_COLORS[a.type],fill:true,tension:0.3,pointRadius:0,borderWidth:1.5}));
+  } else {
+    datasets=selected.map(a=>({label:a.name,data:snaps.map(s=>s.balances[a.id]||0),borderColor:ACCT_COLORS[a.type],backgroundColor:'transparent',fill:false,tension:0.3,pointRadius:0,borderWidth:2}));
+  }
+
+  // If multiple selected, add a net total line
+  if(selected.length>1){
+    datasets.push({label:'Total',data:snaps.map(s=>selected.reduce((sum,a)=>sum+(s.balances[a.id]||0),0)),borderColor:'#e8ecf4',backgroundColor:'transparent',fill:false,tension:0.3,pointRadius:0,borderWidth:1.5,borderDash:[6,3]});
+  }
+
+  nwChart=new Chart(document.getElementById('nwChart').getContext('2d'),{type:'line',data:{labels,datasets},options:{responsive:true,maintainAspectRatio:false,interaction:{intersect:false,mode:'index'},plugins:{legend:{position:'bottom',labels:{color:'#6a7490',font:{family:"'IBM Plex Mono'",size:9},padding:10,usePointStyle:true}},tooltip:{backgroundColor:'#161922',borderColor:'#2a3040',borderWidth:1,titleFont:{family:"'IBM Plex Mono'",size:10},bodyFont:{family:"'IBM Plex Mono'",size:10},padding:8,callbacks:{label:item=>`${item.dataset.label}: $${item.raw.toLocaleString('en-US',{maximumFractionDigits:0})}`}}},scales:{x:{grid:{color:'rgba(42,48,64,0.4)',drawBorder:false},ticks:{color:'#4a5268',font:{family:"'IBM Plex Mono'",size:9},maxTicksLimit:10}},y:{stacked:mode==='stacked',grid:{color:'rgba(42,48,64,0.4)',drawBorder:false},ticks:{color:'#4a5268',font:{family:"'IBM Plex Mono'",size:9},callback:v=>{const abs=Math.abs(v);const sign=v<0?'-':'';if(abs>=1e6)return sign+'$'+(abs/1e6).toFixed(1)+'M';if(abs>=1000)return sign+'$'+(abs/1000).toFixed(0)+'k';return sign+'$'+abs;}}}}}}); 
+}
+
+function renderDashboard(){
+  if(!simData)return;
+  const f=n=>'$'+Math.abs(n).toLocaleString('en-US',{maximumFractionDigits:0});
+  const f2=n=>'$'+n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+  const internalAccts=accounts.filter(a=>!a.external);const externalAccts=accounts.filter(a=>a.external);
+  const finalNW=internalAccts.reduce((s,a)=>s+(simData.finalBalances[a.id]||0),0);
+  const startNW=internalAccts.reduce((s,a)=>s+a.balance,0);
+  const nwDelta=finalNW-startNW;const months=parseInt(document.getElementById('cfgMonths').value);
+  const chkId=accounts.find(a=>a.type==='checking'&&!a.external)?.id;
+  let tIn=0,tOut=0;
+  if(chkId)simData.allTransfers.forEach(t=>{if(t.to===chkId)tIn+=t.amount;if(t.from===chkId)tOut+=t.amount;});
+  const mIn=tIn/months,mOut=tOut/months;
+
+  document.getElementById('dashKpis').innerHTML=`
+    <div class="kpi"><div class="k-label">Net Worth</div><div class="k-val" style="color:var(--grn)">${f2(finalNW)}</div><div class="k-sub">${nwDelta>=0?'+':''}${f(nwDelta)} over ${months}mo</div></div>
+    <div class="kpi"><div class="k-label">Checking Min</div><div class="k-val" style="color:${simData.minBal<0?'var(--red)':simData.minBal<2000?'var(--amb)':'var(--t1)'}">${f2(simData.minBal)}</div><div class="k-sub">${simData.minBalDate.toLocaleDateString('en-US',{month:'short',day:'numeric'})}</div></div>
+    <div class="kpi"><div class="k-label">Mo. Inflow</div><div class="k-val" style="color:var(--grn)">${f(mIn)}</div><div class="k-sub">to checking</div></div>
+    <div class="kpi"><div class="k-label">Mo. Outflow</div><div class="k-val" style="color:var(--red)">${f(mOut)}</div><div class="k-sub">from checking</div></div>
+    <div class="kpi"><div class="k-label">Mo. Net</div><div class="k-val" style="color:${mIn-mOut>=0?'var(--grn)':'var(--red)'}">${(mIn-mOut>=0?'+':'-')+f(Math.abs(mIn-mOut))}</div><div class="k-sub">savings rate ${mIn>0?((mIn-mOut)/mIn*100).toFixed(0):0}%</div></div>`;
+
+  // Build chart account picker dropdown
+  renderAcctPicker();
+  renderNWChart();
+
+  // NW breakdown
+  const bEl=document.getElementById('nwBreakdown');
+  bEl.innerHTML=[...internalAccts].sort((a,b)=>(simData.finalBalances[b.id]||0)-(simData.finalBalances[a.id]||0)).map(a=>{const bal=simData.finalBalances[a.id]||0;return`<div class="nw-row"><div class="nw-dot" style="background:${ACCT_COLORS[a.type]}"></div><div class="nw-name">${a.name}</div><div class="nw-val" style="color:${bal>=0?'var(--grn)':'var(--red)'}">${f2(bal)}</div><div class="nw-pct">${finalNW>0?(bal/finalNW*100).toFixed(1)+'%':''}</div></div>`;}).join('')+`<div class="nw-row" style="border-top:2px solid var(--b2);margin-top:4px;padding-top:8px;font-weight:700;"><div class="nw-dot" style="background:transparent;"></div><div class="nw-name" style="color:var(--t1);">Net Worth</div><div class="nw-val" style="color:var(--grn)">${f2(finalNW)}</div><div class="nw-pct">100%</div></div>`
+    +`<div style="font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:0.8px;color:var(--t4);margin:16px 0 6px;">External accounts (${months}mo totals)</div>`
+    +externalAccts.filter(a=>(simData.finalBalances[a.id]||0)!==0).sort((a,b)=>Math.abs(simData.finalBalances[b.id]||0)-Math.abs(simData.finalBalances[a.id]||0)).map(a=>{const bal=simData.finalBalances[a.id]||0;return`<div class="nw-row"><div class="nw-dot" style="background:${ACCT_COLORS[a.type]||'#6a7490'};opacity:0.5;"></div><div class="nw-name" style="color:var(--t3);">${a.name}</div><div class="nw-val" style="color:${bal>0?'var(--grn)':'var(--red)'};">${f2(Math.abs(bal))}</div></div>`;}).join('');
+
+  // Monthly cashflow bars
+  if(cfBarChart)cfBarChart.destroy();
+  const byMo={};simData.allTransfers.forEach(t=>{const mk=t.date.getFullYear()+'-'+String(t.date.getMonth()+1).padStart(2,'0');if(!byMo[mk])byMo[mk]={inf:0,out:0};if(t.to===chkId)byMo[mk].inf+=t.amount;if(t.from===chkId)byMo[mk].out+=t.amount;});
+  const moKeys=Object.keys(byMo).sort();
+  cfBarChart=new Chart(document.getElementById('cfBarChart').getContext('2d'),{type:'bar',data:{labels:moKeys.map(k=>{const[y,m]=k.split('-');return new Date(y,m-1).toLocaleDateString('en-US',{month:'short'});}),datasets:[{label:'Inflow',data:moKeys.map(k=>byMo[k].inf),backgroundColor:'#2dd4a830',borderColor:'#2dd4a8',borderWidth:1,borderRadius:3},{label:'Outflow',data:moKeys.map(k=>-byMo[k].out),backgroundColor:'#ef646130',borderColor:'#ef6461',borderWidth:1,borderRadius:3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{color:'#6a7490',font:{family:"'IBM Plex Mono'",size:9},padding:10,usePointStyle:true}},tooltip:{backgroundColor:'#161922',borderColor:'#2a3040',borderWidth:1,titleFont:{family:"'IBM Plex Mono'",size:10},bodyFont:{family:"'IBM Plex Mono'",size:10}}},scales:{x:{grid:{display:false},ticks:{color:'#4a5268',font:{family:"'IBM Plex Mono'",size:9}}},y:{grid:{color:'rgba(42,48,64,0.4)',drawBorder:false},ticks:{color:'#4a5268',font:{family:"'IBM Plex Mono'",size:9},callback:v=>'$'+(Math.abs(v)>=1000?(v/1000).toFixed(0)+'k':v)}}}}});
+
+  // Income waterfall: reconstruct gross → net per group
+  const wfEl=document.getElementById('waterfallView');
+  const groups=[...new Set(flows.filter(fl=>fl.group).map(fl=>fl.group))].filter(g=>flows.some(fl=>fl.group===g&&fl.enabled&&fl.category==='income'));
+  let wfHTML='';
+  groups.forEach(g=>{
+    const gFlows=flows.filter(fl=>fl.group===g&&fl.enabled);
+    // Compute monthly equivalent per flow
+    const toMonthly=(fl)=>{const a=fl.amount;const p=fl.period;if(p==='monthly')return a;if(p==='semi-monthly')return a*2;if(p==='quarterly')return a/3;if(p==='annual')return a/12;const d=parseInt(p);if(!isNaN(d)&&d>0)return a*(30.44/d);return a;};
+    const grossM=gFlows.reduce((s,fl)=>s+toMonthly(fl),0);
+    const netM=gFlows.filter(fl=>fl.category==='income').reduce((s,fl)=>s+toMonthly(fl),0);
+    wfHTML+=`<div style="font-family:var(--mono);font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:0.5px;margin:12px 0 6px;font-weight:600;">${g}</div>`;
+    wfHTML+=`<div class="wf-row"><div class="wf-label" style="font-weight:600;">Gross</div><div class="wf-bar-wrap"><div class="wf-bar" style="width:100%;background:var(--grn);"></div></div><div class="wf-val" style="color:var(--grn);">${f2(grossM)}</div></div>`;
+    gFlows.filter(fl=>fl.category!=='income').forEach(fl=>{
+      const m=toMonthly(fl);const pct=grossM>0?(m/grossM*100).toFixed(1):0;
+      wfHTML+=`<div class="wf-row"><div class="wf-label">${fl.name.replace(g+' ','').replace(g.charAt(0).toUpperCase()+g.slice(1)+' ','')}</div><div class="wf-bar-wrap"><div class="wf-bar" style="width:${pct}%;background:var(--red);"></div></div><div class="wf-val" style="color:var(--red);">${f2(m)}</div><div class="wf-pct">${pct}%</div></div>`;
+    });
+    wfHTML+=`<div class="wf-row wf-total"><div class="wf-label">Net pay</div><div class="wf-bar-wrap"><div class="wf-bar" style="width:${grossM>0?(netM/grossM*100).toFixed(1):0}%;background:var(--grn);"></div></div><div class="wf-val" style="color:var(--grn);">${f2(netM)}</div><div class="wf-pct">${grossM>0?(netM/grossM*100).toFixed(1):0}%</div></div>`;
+  });
+  wfEl.innerHTML=wfHTML||'<div style="font-family:var(--mono);font-size:11px;color:var(--t4);">No grouped income flows. Add a group tag to flows to see the waterfall.</div>';
+
+  // Expense breakdown by category (non-grouped outflows from checking)
+  const ebEl=document.getElementById('expenseBreakdown');
+  const catTotals={};const toMonthly2=(fl)=>{const a=fl.amount;const p=fl.period;if(p==='monthly')return a;if(p==='semi-monthly')return a*2;if(p==='quarterly')return a/3;if(p==='annual')return a/12;const d=parseInt(p);if(!isNaN(d)&&d>0)return a*(30.44/d);return a;};
+  const extIds=new Set(externalAccts.map(a=>a.id));
+  const intIds=new Set(internalAccts.map(a=>a.id));
+  flows.filter(fl=>fl.enabled&&intIds.has(fl.from)&&extIds.has(fl.to)&&!fl.group).forEach(fl=>{const cat=fl.category;const m=toMonthly2(fl);if(!catTotals[cat])catTotals[cat]=0;catTotals[cat]+=m;});
+  const sortedCats=Object.entries(catTotals).sort((a,b)=>b[1]-a[1]);const maxCat=sortedCats.length>0?sortedCats[0][1]:1;
+  ebEl.innerHTML=sortedCats.map(([cat,amt])=>`<div class="wf-row"><div class="wf-label" style="text-transform:capitalize;">${cat}</div><div class="wf-bar-wrap"><div class="wf-bar" style="width:${(amt/maxCat*100).toFixed(1)}%;background:${CAT_COLORS[cat]||'#6a7490'};"></div></div><div class="wf-val" style="color:var(--red);">${f2(amt)}</div></div>`).join('')+`<div class="wf-row wf-total"><div class="wf-label">Total</div><div class="wf-bar-wrap"></div><div class="wf-val" style="color:var(--red);">${f2(sortedCats.reduce((s,[,v])=>s+v,0))}</div></div>`;
+
+  // ── Option 1: Linked positions (debt → asset) ──
+  const lpEl=document.getElementById('linkedPositions');
+  const linked=accounts.filter(a=>a.linkedTo&&!a.external);
+  const unlinkedDebt=accounts.filter(a=>a.type==='debt'&&!a.external&&!a.linkedTo&&(simData.finalBalances[a.id]||0)<0);
+  let lpHTML='';
+  if(linked.length){
+    linked.forEach(debt=>{
+      const asset=accounts.find(a=>a.id===debt.linkedTo);
+      if(!asset)return;
+      const dBal=simData.finalBalances[debt.id]||0;
+      const aBal=simData.finalBalances[asset.id]||0;
+      const equity=aBal+dBal;
+      const ltv=aBal>0?Math.abs(dBal)/aBal*100:0;
+      lpHTML+=`<div style="border:1px solid var(--b1);border-radius:6px;padding:12px;margin-bottom:8px;background:var(--s2);">`;
+      lpHTML+=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;"><span style="font-family:var(--mono);font-size:12px;font-weight:600;color:var(--t1);">${asset.name}</span><span style="font-family:var(--mono);font-size:10px;padding:2px 6px;border-radius:3px;background:${equity>=0?'var(--grn2)':'var(--red2)'};color:${equity>=0?'var(--grn)':'var(--red)'};">${equity>=0?'above water':'underwater'}</span></div>`;
+      lpHTML+=`<div class="nw-row" style="border:none;padding:2px 0;"><div class="nw-dot" style="background:${ACCT_COLORS[asset.type]||'#5b9cf6'};"></div><div class="nw-name">Asset value</div><div class="nw-val" style="color:var(--grn);">${f2(aBal)}</div></div>`;
+      lpHTML+=`<div class="nw-row" style="border:none;padding:2px 0;"><div class="nw-dot" style="background:${ACCT_COLORS[debt.type]||'#ef6461'};"></div><div class="nw-name">${debt.name}</div><div class="nw-val" style="color:var(--red);">${f2(dBal)}</div></div>`;
+      lpHTML+=`<div class="nw-row" style="border-top:1px solid var(--b2);margin-top:4px;padding-top:6px;font-weight:700;"><div class="nw-dot" style="background:transparent;"></div><div class="nw-name" style="color:var(--t1);">Equity</div><div class="nw-val" style="color:${equity>=0?'var(--grn)':'var(--red)'};">${f2(equity)}</div></div>`;
+      lpHTML+=`<div style="font-family:var(--mono);font-size:9px;color:var(--t4);margin-top:4px;">LTV: ${ltv.toFixed(1)}%</div>`;
+      lpHTML+=`</div>`;
+    });
+  }
+  if(unlinkedDebt.length){
+    lpHTML+=`<div style="font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:0.5px;color:var(--t4);margin:10px 0 6px;">Unlinked debt (no backing asset)</div>`;
+    unlinkedDebt.forEach(d=>{
+      const dBal=simData.finalBalances[d.id]||0;
+      lpHTML+=`<div class="nw-row" style="padding:3px 0;"><div class="nw-dot" style="background:var(--red);"></div><div class="nw-name" style="color:var(--t3);">${d.name}</div><div class="nw-val" style="color:var(--red);">${f2(dBal)}</div></div>`;
+    });
+  }
+  if(!lpHTML)lpHTML='<div style="font-family:var(--mono);font-size:11px;color:var(--t4);">No linked debt-asset pairs. Use "Linked to" in account settings.</div>';
+  lpEl.innerHTML=lpHTML;
+
+  // ── Grouped by account type (automatic) ──
+  const gpEl=document.getElementById('groupedPositions');
+  const typeOrder=['checking','savings','retirement','hsa','brokerage','property','crypto','debt'];
+  const typeGroupLabels={checking:'Cash',savings:'Savings',retirement:'Retirement',hsa:'HSA',brokerage:'Brokerage',property:'Real Estate',crypto:'Crypto',debt:'Debt'};
+  const typeGroups={};
+  accounts.filter(a=>!a.external).forEach(a=>{const t=a.type;if(!typeGroups[t])typeGroups[t]=[];typeGroups[t].push(a);});
+  let gpHTML='';
+  typeOrder.forEach(t=>{
+    const members=typeGroups[t];
+    if(!members||!members.length)return;
+    const netBal=members.reduce((s,a)=>s+(simData.finalBalances[a.id]||0),0);
+    const col=ACCT_COLORS[t]||'#6a7490';
+    gpHTML+=`<div style="border:1px solid var(--b1);border-radius:6px;padding:12px;margin-bottom:8px;background:var(--s2);border-left:3px solid ${col};">`;
+    gpHTML+=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:${members.length>1?'8':'0'}px;"><span style="font-family:var(--mono);font-size:12px;font-weight:600;color:var(--t1);">${typeGroupLabels[t]||t}</span><span style="font-family:var(--mono);font-size:11px;font-weight:700;color:${netBal>=0?'var(--grn)':'var(--red)'};">${f2(netBal)}</span></div>`;
+    if(members.length>1){
+      members.sort((a,b)=>(simData.finalBalances[b.id]||0)-(simData.finalBalances[a.id]||0)).forEach(a=>{
+        const bal=simData.finalBalances[a.id]||0;
+        gpHTML+=`<div class="nw-row" style="border:none;padding:2px 0;"><div class="nw-dot" style="background:${col};"></div><div class="nw-name">${a.name}</div><div class="nw-val" style="color:${bal>=0?'var(--grn)':'var(--red)'};">${f2(bal)}</div></div>`;
+      });
+    }
+    gpHTML+=`</div>`;
+  });
+  if(!gpHTML)gpHTML='<div style="font-family:var(--mono);font-size:11px;color:var(--t4);">No internal accounts.</div>';
+  gpEl.innerHTML=gpHTML;
+}
+
+// ═══════ ACCOUNTS ═══════
+let acctTypeFilter=new Set();
+
+function renderAcctTypeChips(){
+  const types=[...new Set(accounts.map(a=>a.type))];
+  document.getElementById('acctTypeChips').innerHTML=types.map(t=>{
+    const on=acctTypeFilter.has(t);
+    const col=ACCT_COLORS[t]||'#6a7490';
+    return`<span class="chip ${on?'on':''}" style="${on?`border-color:${col};color:${col};background:${col}18`:''}" onclick="toggleAcctTypeFilter('${t}')">${TYPE_LABELS[t]||t}</span>`;
+  }).join('');
+}
+
+function toggleAcctTypeFilter(t){if(acctTypeFilter.has(t))acctTypeFilter.delete(t);else acctTypeFilter.add(t);renderAccounts();}
+
+function renderAccounts(){
+  renderAcctTypeChips();
+  const search=(document.getElementById('acctSearch')?.value||'').toLowerCase().trim();
+  const showMode=document.getElementById('acctShowMode')?.value||'all';
+  const sortMode=document.getElementById('acctSort')?.value||'type';
+
+  let filtered=accounts.filter(a=>{
+    if(search&&!a.name.toLowerCase().includes(search)&&!(a.type||'').toLowerCase().includes(search))return false;
+    if(acctTypeFilter.size>0&&!acctTypeFilter.has(a.type))return false;
+    if(showMode==='internal'&&a.external)return false;
+    if(showMode==='external'&&!a.external)return false;
+    return true;
+  });
+
+  const getBal=(a)=>simData&&simData.finalBalances[a.id]!==undefined?simData.finalBalances[a.id]:(a.external?0:a.balance);
+
+  if(sortMode==='type'){
+    // Default: internal first grouped by type, then external
+    const internal=filtered.filter(a=>!a.external);
+    const external=filtered.filter(a=>a.external);
+    let html='';
+    if(internal.length)html+=internal.map(a=>acctCardHTML(a)).join('');
+    if(external.length)html+=`<div style="grid-column:1/-1;font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:0.8px;color:var(--t4);padding-top:8px;">External accounts</div>`+external.map(a=>acctCardHTML(a)).join('');
+    if(!filtered.length)html=`<div style="grid-column:1/-1;text-align:center;color:var(--t4);font-family:var(--mono);font-size:11px;padding:40px;">No accounts match filters</div>`;
+    document.getElementById('acctsGrid').innerHTML=html;
+  } else {
+    const sorted=[...filtered];
+    if(sortMode==='balance-desc')sorted.sort((a,b)=>b.balance-a.balance);
+    else if(sortMode==='balance-asc')sorted.sort((a,b)=>a.balance-b.balance);
+    else if(sortMode==='name-asc')sorted.sort((a,b)=>a.name.localeCompare(b.name));
+    else if(sortMode==='projected-desc')sorted.sort((a,b)=>getBal(b)-getBal(a));
+    else if(sortMode==='rate-desc')sorted.sort((a,b)=>(b.annualRate||0)-(a.annualRate||0));
+    let html=sorted.map(a=>acctCardHTML(a)).join('');
+    if(!sorted.length)html=`<div style="grid-column:1/-1;text-align:center;color:var(--t4);font-family:var(--mono);font-size:11px;padding:40px;">No accounts match filters</div>`;
+    document.getElementById('acctsGrid').innerHTML=html;
+  }
+
+  // Sparklines
+  if(simData)filtered.forEach(a=>{const c=document.getElementById('ach-'+a.id);if(!c)return;if(acctCharts[a.id])acctCharts[a.id].destroy();const snaps=simData.monthlySnapshots;acctCharts[a.id]=new Chart(c.getContext('2d'),{type:'line',data:{labels:snaps.map(()=>''),datasets:[{data:snaps.map(s=>s.balances[a.id]||0),borderColor:ACCT_COLORS[a.type]||'#6a7490',backgroundColor:(ACCT_COLORS[a.type]||'#6a7490')+'15',fill:true,tension:0.4,pointRadius:0,borderWidth:1.5}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{enabled:false}},scales:{x:{display:false},y:{display:false}}}});});
+}
+function acctCardHTML(a){
+  const simBal=simData&&simData.finalBalances[a.id]!==undefined?simData.finalBalances[a.id]:null;
+  const bal=simBal!==null?simBal:(a.external?0:a.balance);
+  const isExt=a.external;
+  const projLabel=simBal!==null?(isExt?`Total over period: ${f2g(Math.abs(bal))}`:`Projected: ${f2g(bal)}`):'Run simulation to project';
+  const startBal=isExt?'$0.00':'$'+a.balance.toLocaleString('en-US',{minimumFractionDigits:2});
+  const balColor=isExt?(bal>0?'var(--grn)':bal<0?'var(--red)':'var(--t3)'):(a.balance>=0?'var(--grn)':'var(--red)');
+  const rateStr=a.annualRate?`<span style="font-size:10px;font-family:var(--mono);color:${a.annualRate>0&&a.balance<0?'var(--red)':a.annualRate>0?'var(--grn)':'var(--t3)'};margin-left:6px;">${(a.annualRate*100).toFixed(2)}% APR</span>`:'';
+  const schedBtn=a.annualRate&&!isExt&&simData?`<button onclick="showSchedule('${a.id}')">Schedule</button>`:'';
+
+  // Build flow list
+  const inFlows=flows.filter(f=>f.to===a.id);
+  const outFlows=flows.filter(f=>f.from===a.id);
+  const nTotal=inFlows.length+outFlows.length;
+  let flowSection='';
+  if(nTotal>0){
+    const fAmt=v=>'$'+v.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+    let listItems='';
+    inFlows.forEach(f=>{
+      listItems+=`<div onclick="editFlow('${f.id}')" style="display:flex;justify-content:space-between;align-items:center;padding:4px 8px;cursor:pointer;border-radius:3px;transition:background 0.1s;" onmouseenter="this.style.background='var(--s3)'" onmouseleave="this.style.background='transparent'"><span style="color:var(--t2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;">${f.name}</span><span style="color:var(--grn);flex-shrink:0;margin-left:8px;">+${fAmt(f.amount)}</span></div>`;
+    });
+    outFlows.forEach(f=>{
+      listItems+=`<div onclick="editFlow('${f.id}')" style="display:flex;justify-content:space-between;align-items:center;padding:4px 8px;cursor:pointer;border-radius:3px;transition:background 0.1s;" onmouseenter="this.style.background='var(--s3)'" onmouseleave="this.style.background='transparent'"><span style="color:var(--t2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;">${f.name}</span><span style="color:var(--red);flex-shrink:0;margin-left:8px;">-${fAmt(f.amount)}</span></div>`;
+    });
+    flowSection=`<details style="margin-top:8px;"><summary style="font-family:var(--mono);font-size:10px;color:var(--t3);cursor:pointer;user-select:none;list-style:none;display:flex;align-items:center;gap:4px;"><span class="fl-detail-toggle" style="font-size:8px;color:var(--t4);transition:transform 0.15s;display:inline-block;">▶</span> ${nTotal} flow${nTotal!==1?'s':''}</summary><div style="margin-top:4px;font-family:var(--mono);font-size:10px;border-top:1px solid var(--b1);padding-top:4px;">${listItems}</div></details>`;
+  }
+
+  return`<div class="acct-card type-${a.type}" style="${isExt?'border-style:dashed;opacity:0.85;':''}"><div class="ac-top"><span class="ac-name">${a.name}${rateStr}</span><span class="ac-type">${TYPE_LABELS[a.type]||a.type}${isExt?' · ext':''}</span></div><div class="ac-bal" style="color:${balColor}">${startBal}</div><div class="ac-proj">${projLabel}</div>${flowSection}<div class="ac-chart"><canvas id="ach-${a.id}"></canvas></div><div class="ac-actions"><button onclick="editAcct('${a.id}')">Edit</button>${schedBtn}<button class="del" onclick="delAcct('${a.id}')">Delete</button></div></div>`;
+}
+function f2g(n){return'$'+n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}
+function acctName(id){const a=accounts.find(x=>x.id===id);return a?a.name:'?';}
+function showAcctModal(id){
+  editAcctId=id||null;
+  // Build linked-to dropdown (internal non-external accounts)
+  const linkOpts='<option value="">None</option>'+accounts.filter(a=>!a.external&&a.id!==id).map(a=>`<option value="${a.id}">${a.name}</option>`).join('');
+  document.getElementById('amLinked').innerHTML=linkOpts;
+  if(id){const a=accounts.find(x=>x.id===id);document.getElementById('amTitle').textContent='Edit account';document.getElementById('amSave').textContent='Save';document.getElementById('amName').value=a.name;document.getElementById('amType').value=a.type;document.getElementById('amBal').value=a.balance;document.getElementById('amDate').value=a.asOf;document.getElementById('amRate').value=((a.annualRate||0)*100)||'';document.getElementById('amExt').checked=!!a.external;document.getElementById('amZeroCap').checked=!!a.zeroCap;document.getElementById('amLinked').value=a.linkedTo||'';}
+  else{document.getElementById('amTitle').textContent='Add account';document.getElementById('amSave').textContent='Add';document.getElementById('amName').value='';document.getElementById('amType').value='checking';document.getElementById('amBal').value='';document.getElementById('amDate').value=document.getElementById('cfgStart').value;document.getElementById('amRate').value='';document.getElementById('amExt').checked=false;document.getElementById('amZeroCap').checked=false;document.getElementById('amLinked').value='';}
+  document.getElementById('acctModal').style.display='flex';
+}
+function closeAcctModal(){document.getElementById('acctModal').style.display='none';editAcctId=null;}
+function editAcct(id){showAcctModal(id);}
+function saveAcct(){const name=document.getElementById('amName').value.trim();const type=document.getElementById('amType').value;const bal=parseFloat(document.getElementById('amBal').value)||0;const asOf=document.getElementById('amDate').value;const annualRate=(parseFloat(document.getElementById('amRate').value)||0)/100;const external=document.getElementById('amExt').checked;const zeroCap=document.getElementById('amZeroCap').checked;const linkedTo=document.getElementById('amLinked').value||null;if(!name)return;if(editAcctId){const a=accounts.find(x=>x.id===editAcctId);if(a)Object.assign(a,{name,type,balance:bal,asOf,annualRate,external,zeroCap,linkedTo});}else accounts.push({id:nid('a'),name,type,balance:bal,asOf,annualRate,external,zeroCap,linkedTo});closeAcctModal();simulate();}
+function delAcct(id){
+  const a=accounts.find(x=>x.id===id);if(!a)return;
+  const connected=flows.filter(f=>f.from===id||f.to===id);
+  let msg=`Delete "${a.name}"?`;
+  if(connected.length)msg+=`\n\n${connected.length} flow${connected.length!==1?'s':''} reference this account and will be orphaned.`;
+  if(!confirm(msg))return;
+  accounts=accounts.filter(x=>x.id!==id);simulate();
+}
+
+function viewFlowsForAcct(acctId){
+  // Switch to flows tab with account filter pre-set
+  const tab=document.querySelectorAll('.tab')[2]; // Flows tab
+  openView('flows',tab);
+  document.getElementById('flowAcctFilter').value=acctId;
+  document.getElementById('flowSearch').value='';
+  flowCatFilter.clear();
+  document.getElementById('flowGroupFilter').value='';
+  document.getElementById('flowSort').value='group';
+  renderFlows();
+}
+
+function showSchedule(acctId){
+  const a=accounts.find(x=>x.id===acctId);
+  if(!a||!a.annualRate||!simData)return;
+
+  const isDebt=a.balance<0;
+  const monthlyRate=a.annualRate/12;
+
+  // Find all flows that target this account (payments into it)
+  const inflows=flows.filter(f=>f.enabled&&f.to===acctId);
+  const outflows=flows.filter(f=>f.enabled&&f.from===acctId);
+  const toMonthly=(fl)=>{const amt=fl.amount;const p=fl.period;if(p==='monthly')return amt;if(p==='semi-monthly')return amt*2;if(p==='quarterly')return amt/3;if(p==='annual')return amt/12;if(p==='once')return 0;const d=parseInt(p);if(!isNaN(d)&&d>0)return amt*(30.44/d);return amt;};
+  const monthlyIn=inflows.reduce((s,f)=>s+toMonthly(f),0);
+  const monthlyOut=outflows.reduce((s,f)=>s+toMonthly(f),0);
+
+  document.getElementById('schedTitle').textContent=a.name+' — Schedule';
+
+  // Build month-by-month schedule from sim data
+  const snaps=simData.monthlySnapshots;
+  let totalInterest=0,totalPayments=0;
+  let rows='';
+  let prevBal=a.balance;
+
+  snaps.forEach((snap,i)=>{
+    const bal=snap.balances[acctId]||0;
+    const change=bal-prevBal;
+
+    // Decompose: interest portion = prevBal * monthlyRate, rest = principal/growth
+    const interest=prevBal*monthlyRate;
+    const principal=change-interest;
+    totalInterest+=Math.abs(interest);
+
+    const mo=snap.date.toLocaleDateString('en-US',{month:'short',year:'numeric'});
+    const fc=v=>(v>=0?'':'<span style="color:var(--red)">-</span>')+'$'+Math.abs(v).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+    const fRed=v=>'<span style="color:var(--red)">'+fc(v)+'</span>';
+    const fGrn=v=>'<span style="color:var(--grn)">'+fc(v)+'</span>';
+
+    if(isDebt){
+      rows+=`<tr><td>${mo}</td><td>${fRed(interest)}</td><td>${fGrn(-principal)}</td><td>${fc(bal)}</td></tr>`;
+    } else {
+      rows+=`<tr><td>${mo}</td><td>${fGrn(interest)}</td><td>${fc(change-interest)}</td><td>${fc(bal)}</td></tr>`;
+    }
+    prevBal=bal;
+  });
+
+  const fDollar=v=>'$'+Math.abs(v).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+  const finalBal=snaps.length>0?(snaps[snaps.length-1].balances[acctId]||0):a.balance;
+  const summaryParts=[
+    `Rate: ${(a.annualRate*100).toFixed(2)}%`,
+    `Start: ${fDollar(a.balance)}`,
+    `End: ${fDollar(finalBal)}`,
+    `Total ${isDebt?'interest paid':'growth'}: ${fDollar(totalInterest)}`,
+  ];
+  if(monthlyIn>0)summaryParts.push(`Payments in: ${fDollar(monthlyIn)}/mo`);
+  if(monthlyOut>0)summaryParts.push(`Flows out: ${fDollar(monthlyOut)}/mo`);
+
+  document.getElementById('schedSummary').innerHTML=summaryParts.join(' · ');
+
+  const interestLabel=isDebt?'Interest accrued':'Growth';
+  const principalLabel=isDebt?'Principal paid':'Contributions';
+  document.getElementById('schedTable').innerHTML=`<table class="sched-tbl"><thead><tr><th>Month</th><th>${interestLabel}</th><th>${principalLabel}</th><th>Balance</th></tr></thead><tbody>${rows}</tbody></table>`;
+
+  document.getElementById('schedModal').style.display='flex';
+}
+
+function closeSchedule(){document.getElementById('schedModal').style.display='none';}
+
+// ═══════ FLOWS (grouped view) ═══════
+let flowCatFilter=new Set();
+
+function renderFlowFilters(){
+  // Category chips
+  const cats=[...new Set(flows.map(f=>f.category))].sort();
+  document.getElementById('flowCatChips').innerHTML=cats.map(c=>`<button class="sb-filter${flowCatFilter.has(c)?' active':''}" onclick="toggleFlowCatFilter('${c}')">${c}</button>`).join('');
+  // Group dropdown
+  const grps=[...new Set(flows.filter(f=>f.group).map(f=>f.group))].sort();
+  const gSel=document.getElementById('flowGroupFilter');const gVal=gSel.value;
+  gSel.innerHTML='<option value="">All groups</option><option value="__none__">Ungrouped</option>'+grps.map(g=>`<option value="${g}">${g}</option>`).join('');
+  gSel.value=gVal||'';
+  // Account dropdown
+  const aSel=document.getElementById('flowAcctFilter');const aVal=aSel.value;
+  aSel.innerHTML='<option value="">All accounts</option>'+accounts.map(a=>`<option value="${a.id}">${a.name}${a.external?' (ext)':''}</option>`).join('');
+  aSel.value=aVal||'';
+}
+
+function toggleFlowCatFilter(c){if(flowCatFilter.has(c))flowCatFilter.delete(c);else flowCatFilter.add(c);renderFlows();}
+
+function renderFlows(){
+  renderFlowFilters();
+  const el=document.getElementById('flowsContent');
+  const search=(document.getElementById('flowSearch').value||'').toLowerCase().trim();
+  const groupFilter=document.getElementById('flowGroupFilter').value;
+  const acctFilter=document.getElementById('flowAcctFilter').value;
+  const sortMode=document.getElementById('flowSort').value;
+
+  // Filter
+  let filtered=flows.filter(fl=>{
+    if(search&&!fl.name.toLowerCase().includes(search)&&!fl.category.toLowerCase().includes(search)&&!(fl.group||'').toLowerCase().includes(search)&&!acctName(fl.from).toLowerCase().includes(search)&&!acctName(fl.to).toLowerCase().includes(search))return false;
+    if(flowCatFilter.size>0&&!flowCatFilter.has(fl.category))return false;
+    if(groupFilter==='__none__'&&fl.group)return false;
+    if(groupFilter&&groupFilter!=='__none__'&&fl.group!==groupFilter)return false;
+    if(acctFilter&&fl.from!==acctFilter&&fl.to!==acctFilter)return false;
+    return true;
+  });
+
+  const toMonthly=(fl)=>{const a=fl.amount;const p=fl.period;if(p==='monthly')return a;if(p==='semi-monthly')return a*2;if(p==='quarterly')return a/3;if(p==='annual')return a/12;if(p==='once')return 0;const d=parseInt(p);if(!isNaN(d)&&d>0)return a*(30.44/d);return a;};
+
+  const matchCount=filtered.length;
+  document.getElementById('flowsTitle').textContent=`Flows (${matchCount}${matchCount!==flows.length?' / '+flows.length:''})`;
+
+  // Sort
+  if(sortMode==='group'){
+    // Default grouped rendering
+    const groups=[...new Set(filtered.filter(f=>f.group).map(f=>f.group))].sort();
+    const ungrouped=filtered.filter(f=>!f.group);
+
+    let html='<table class="fl-table"><thead><tr><th>Name</th><th>From</th><th></th><th>To</th><th style="text-align:right">Amount</th><th>Period</th><th>Category</th><th></th></tr></thead><tbody>';
+
+    groups.forEach(g=>{
+      const gFlows=filtered.filter(f=>f.group===g);
+      const gNet=gFlows.filter(f=>f.enabled).reduce((s,f)=>{
+        const m=toMonthly(f);
+        const fromExt=accounts.find(a=>a.id===f.from)?.external;
+        const toExt=accounts.find(a=>a.id===f.to)?.external;
+        if(!toExt&&fromExt)return s+m;
+        if(!fromExt&&toExt)return s-m;
+        return s;
+      },0);
+      const collapsed=!expandedGroups.has(g);
+      html+=`</tbody></table><div class="fl-group-header" onclick="toggleFlowGroup('${g}')"><div><span class="fg-toggle ${collapsed?'':'open'}">▶</span> ${g.toUpperCase()} <span style="color:var(--t4);font-size:9px;margin-left:6px;">${gFlows.length} flows</span></div><div class="fg-sum ${gNet>=0?'pos':'neg'}">net ${gNet>=0?'+':''}${f2g(gNet)}/mo</div></div><table class="fl-table" style="${collapsed?'display:none':''}"><tbody>`;
+      gFlows.forEach(fl=>{html+=flowRow(fl);});
+    });
+
+    if(ungrouped.length>0){
+      const ugNet=ungrouped.filter(f=>f.enabled).reduce((s,f)=>{
+        const m=toMonthly(f);
+        const fromExt=accounts.find(a=>a.id===f.from)?.external;
+        const toExt=accounts.find(a=>a.id===f.to)?.external;
+        if(!toExt&&fromExt)return s+m;
+        if(!fromExt&&toExt)return s-m;
+        return s;
+      },0);
+      const ugCollapsed=!expandedGroups.has('__ungrouped__');
+      html+=`</tbody></table><div class="fl-group-header" onclick="toggleFlowGroup('__ungrouped__')"><div><span class="fg-toggle ${ugCollapsed?'':'open'}">▶</span> UNGROUPED <span style="color:var(--t4);font-size:9px;margin-left:6px;">${ungrouped.length} flows</span></div><div class="fg-sum ${ugNet>=0?'pos':'neg'}">net ${ugNet>=0?'+':''}${f2g(ugNet)}/mo</div></div><table class="fl-table" style="${ugCollapsed?'display:none':''}"><tbody>`;
+      ungrouped.forEach(fl=>{html+=flowRow(fl);});
+    }
+
+    if(matchCount===0)html+=`<tr><td colspan="8" style="text-align:center;color:var(--t4);padding:24px;">No flows match filters</td></tr>`;
+    html+='</tbody></table>';
+    el.innerHTML=html;
+  } else {
+    // Flat sorted list
+    const sorted=[...filtered];
+    if(sortMode==='amount-desc')sorted.sort((a,b)=>b.amount-a.amount);
+    else if(sortMode==='amount-asc')sorted.sort((a,b)=>a.amount-b.amount);
+    else if(sortMode==='name-asc')sorted.sort((a,b)=>a.name.localeCompare(b.name));
+    else if(sortMode==='name-desc')sorted.sort((a,b)=>b.name.localeCompare(a.name));
+    else if(sortMode==='category')sorted.sort((a,b)=>a.category.localeCompare(b.category)||b.amount-a.amount);
+    else if(sortMode==='from')sorted.sort((a,b)=>acctName(a.from).localeCompare(acctName(b.from)));
+    else if(sortMode==='to')sorted.sort((a,b)=>acctName(a.to).localeCompare(acctName(b.to)));
+
+    let html='<table class="fl-table"><thead><tr><th>Name</th><th>From</th><th></th><th>To</th><th style="text-align:right">Amount</th><th>Period</th><th>Category</th><th></th></tr></thead><tbody>';
+    sorted.forEach(fl=>{html+=flowRow(fl);});
+    if(matchCount===0)html+=`<tr><td colspan="8" style="text-align:center;color:var(--t4);padding:24px;">No flows match filters</td></tr>`;
+    html+='</tbody></table>';
+    el.innerHTML=html;
+  }
+}
+
+function flowRow(fl){
+  const fromAcct=accounts.find(a=>a.id===fl.from);const toAcct=accounts.find(a=>a.id===fl.to);
+  const isExpense=fromAcct&&!fromAcct.external&&toAcct&&toAcct.external;
+  const isDeduction=fromAcct&&fromAcct.external&&toAcct&&toAcct.external;
+  const amtClass=isExpense||isDeduction?'neg':'pos';
+  return`<tr style="${!fl.enabled?'opacity:0.4':''}"><td class="fl-name">${fl.name}</td><td class="fl-src">${acctName(fl.from)}</td><td style="color:var(--t4)">→</td><td class="fl-dst">${acctName(fl.to)}</td><td class="fl-amt ${amtClass}">${isExpense||isDeduction?'-':''}${f2g(fl.amount)}</td><td class="fl-period">${PER_LABELS[fl.period]||fl.period}</td><td style="color:var(--t3)">${fl.category}</td><td class="fl-actions"><button onclick="editFlow('${fl.id}')">Edit</button><button onclick="toggleFlow('${fl.id}')">${fl.enabled?'Off':'On'}</button><button class="del" onclick="delFlow('${fl.id}')">✕</button></td></tr>`;
+}
+
+function toggleFlowGroup(g){if(expandedGroups.has(g))expandedGroups.delete(g);else expandedGroups.add(g);renderFlows();}
+function toggleFlow(id){const f=flows.find(x=>x.id===id);if(f)f.enabled=!f.enabled;renderFlows();simulate();}
+
+const DEFAULT_FLOW_CATS=['income','tax','benefits','retirement-contrib','housing','auto','insurance','debt','utility','subscription','transfer','savings','investment','other'];
+const FLOW_CAT_DISPLAY={income:'Income',tax:'Tax',benefits:'Benefits','retirement-contrib':'Retirement Contrib',housing:'Housing',auto:'Auto',insurance:'Insurance',debt:'Debt',utility:'Utility',subscription:'Subscription',transfer:'Transfer',savings:'Savings',investment:'Investment',other:'Other'};
+let customFlowCats=[];
+
+function getAllFlowCats(){
+  const fromFlows=flows.map(f=>f.category).filter(c=>c&&!DEFAULT_FLOW_CATS.includes(c));
+  return[...new Set([...DEFAULT_FLOW_CATS,...customFlowCats,...fromFlows])];
+}
+
+function rebuildFlowCatSelect(selected){
+  const sel=document.getElementById('fmCat');
+  const cats=getAllFlowCats();
+  sel.innerHTML=cats.map(c=>`<option value="${c}">${FLOW_CAT_DISPLAY[c]||c.charAt(0).toUpperCase()+c.slice(1)}</option>`).join('')+'<option value="__new__">+ Add new category...</option>';
+  if(selected&&cats.includes(selected))sel.value=selected;else sel.value='other';
+}
+
+function onFlowCatChange(){
+  const sel=document.getElementById('fmCat');
+  const row=document.getElementById('newFlowCatRow');
+  if(sel.value==='__new__'){row.style.display='block';document.getElementById('newFlowCatInput').value='';setTimeout(()=>document.getElementById('newFlowCatInput').focus(),30);}
+  else row.style.display='none';
+}
+
+function confirmNewFlowCat(){
+  const name=document.getElementById('newFlowCatInput').value.trim();
+  if(!name)return;
+  const slug=name.toLowerCase().replace(/[^a-z0-9]+/g,'-');
+  if(!getAllFlowCats().includes(slug)){customFlowCats.push(slug);FLOW_CAT_DISPLAY[slug]=name;}
+  document.getElementById('newFlowCatRow').style.display='none';
+  rebuildFlowCatSelect(slug);
+  saveLS();
+}
+
+function cancelNewFlowCat(){document.getElementById('newFlowCatRow').style.display='none';document.getElementById('fmCat').value='other';}
+
+function buildAcctOpts(){const int=accounts.filter(a=>!a.external);const ext=accounts.filter(a=>a.external);return'<optgroup label="Internal">'+int.map(a=>`<option value="${a.id}">${a.name}</option>`).join('')+'</optgroup><optgroup label="External">'+ext.map(a=>`<option value="${a.id}">${a.name}</option>`).join('')+'</optgroup>';}
+function showFlowModal(id){
+  editFlowId=id||null;const opts=buildAcctOpts();document.getElementById('fmFrom').innerHTML=opts;document.getElementById('fmTo').innerHTML=opts;
+  if(id){const fl=flows.find(x=>x.id===id);document.getElementById('fmTitle').textContent='Edit flow';document.getElementById('fmSave').textContent='Save';document.getElementById('fmName').value=fl.name;document.getElementById('fmFrom').value=fl.from;document.getElementById('fmTo').value=fl.to;document.getElementById('fmAmt').value=fl.amount;document.getElementById('fmPeriod').value=fl.period;document.getElementById('fmStart').value=fl.start;document.getElementById('fmEnd').value=fl.end||'';rebuildFlowCatSelect(fl.category);document.getElementById('fmGroup').value=fl.group||'';document.getElementById('fmEnabled').checked=fl.enabled;}
+  else{document.getElementById('fmTitle').textContent='Add flow';document.getElementById('fmSave').textContent='Add';document.getElementById('fmName').value='';document.getElementById('fmFrom').value='a-chk';const firstExt=accounts.find(a=>a.external);document.getElementById('fmTo').value=firstExt?firstExt.id:'a-chk';document.getElementById('fmAmt').value='';document.getElementById('fmPeriod').value='monthly';document.getElementById('fmStart').value=document.getElementById('cfgStart').value;document.getElementById('fmEnd').value='';rebuildFlowCatSelect('other');document.getElementById('fmGroup').value='';document.getElementById('fmEnabled').checked=true;}
+  document.getElementById('flowModal').style.display='flex';
+}
+function closeFlowModal(){document.getElementById('flowModal').style.display='none';editFlowId=null;}
+function editFlow(id){showFlowModal(id);}
+function saveFlow(){
+  const name=document.getElementById('fmName').value.trim();const from=document.getElementById('fmFrom').value;const to=document.getElementById('fmTo').value;const amount=parseFloat(document.getElementById('fmAmt').value)||0;const period=document.getElementById('fmPeriod').value;const start=document.getElementById('fmStart').value;const end=document.getElementById('fmEnd').value||null;const category=document.getElementById('fmCat').value;const group=document.getElementById('fmGroup').value.trim().toLowerCase()||null;const enabled=document.getElementById('fmEnabled').checked;
+  if(!name||!amount||!start)return;
+  if(editFlowId){const fl=flows.find(x=>x.id===editFlowId);if(fl)Object.assign(fl,{name,from,to,amount,period,start,end,category,group,enabled});}
+  else flows.push({id:nid('f'),name,from,to,amount,period,start,end:period==='once'?null:end,category,group,enabled});
+  closeFlowModal();renderFlows();simulate();
+}
+function delFlow(id){
+  const f=flows.find(x=>x.id===id);if(!f)return;
+  if(!confirm(`Delete flow "${f.name}"?`))return;
+  flows=flows.filter(x=>x.id!==id);renderFlows();simulate();
+}
+
+// ═══════════════════════════════════════════════════════════
+//  GRAPH VIEW — force simulation with layered preset layout
+// ═══════════════════════════════════════════════════════════
+
+function toMonthlyAmt(fl){const a=fl.amount;const p=fl.period;if(p==='monthly')return a;if(p==='semi-monthly')return a*2;if(p==='quarterly')return a/3;if(p==='annual')return a/12;if(p==='once')return 0;const d=parseInt(p);if(!isNaN(d)&&d>0)return a*(30.44/d);return a;}
+
+let graphNodes=[],graphEdges=[],graphAnim=null,graphDrag=null,graphInited=false;
+
+function getLayer(acct){
+  if(!acct.external)return 2;
+  if(acct.type==='income-source')return 1;
+  if(acct.type==='tax')return 0;
+  if(acct.type==='expense'&&acct.name.toLowerCase().includes('benefit'))return 0;
+  return 3;
+}
+
+const LAYER_LABELS=['Deductions','Income','Accounts','Expenses'];
+const LAYER_LABEL_COLORS=['#ef6461','#2dd4a8','#5b9cf6','#f0b952'];
+
+function buildLayeredPositions(nodes,W,H){
+  const layers=[[],[],[],[]];
+  nodes.forEach(n=>{layers[n.layer].push(n);});
+  const padX=W*0.08,padY=H*0.12;
+  const usableW=W-padX*2,usableH=H-padY*2;
+  const colW=usableW/3;
+  const positions={};
+  layers.forEach((layer,li)=>{
+    if(!layer.length)return;
+    const x=padX+li*colW;
+    const gap=Math.min(90,usableH/(layer.length+1));
+    const startY=H/2-(layer.length-1)*gap/2;
+    layer.forEach((n,ni)=>{positions[n.id]={x,y:startY+ni*gap};});
+  });
+  return positions;
+}
+
+function initGraph(forceReset){
+  setTimeout(()=>{
+  const canvas=document.getElementById('graphCanvas');
+  const dpr=2;
+  const cssW=canvas.clientWidth;
+  const cssH=canvas.clientHeight;
+  if(cssW<50||cssH<50)return;
+  canvas.width=cssW*dpr;canvas.height=cssH*dpr;
+
+  const showEnabled=document.getElementById('graphShowMode').value==='enabled';
+  const activeFlows=flows.filter(f=>showEnabled?f.enabled:true);
+  const W=canvas.width,H=canvas.height;
+
+  // Build nodes
+  const referencedIds=new Set();
+  activeFlows.forEach(f=>{referencedIds.add(f.from);referencedIds.add(f.to);});
+  const nodeList=accounts.filter(a=>!a.external||referencedIds.has(a.id)).map(a=>({id:a.id,label:a.name,type:a.type,balance:a.balance,external:!!a.external,layer:getLayer(a)}));
+
+  // Get layered positions as starting point
+  const preset=buildLayeredPositions(nodeList,W,H);
+
+  graphNodes=nodeList.map(n=>{
+    const existing=(!forceReset&&graphInited)?graphNodes.find(gn=>gn.id===n.id):null;
+    const p=preset[n.id]||{x:W/2,y:H/2};
+    return{...n,x:existing?existing.x:p.x,y:existing?existing.y:p.y,vx:0,vy:0,r:n.external?28:40};
+  });
+
+  // Build edges
+  const edgeMap={};
+  activeFlows.forEach(f=>{
+    if(!preset[f.from]||!preset[f.to])return;
+    const k=f.from+'|'+f.to;
+    const amt=toMonthlyAmt(f);
+    if(!edgeMap[k])edgeMap[k]={from:f.from,to:f.to,amount:0,category:f.category,flows:[]};
+    edgeMap[k].amount+=amt;edgeMap[k].flows.push(f);
+  });
+  graphEdges=Object.values(edgeMap);
+  const maxAmt=Math.max(...graphEdges.map(e=>e.amount),1);
+  graphEdges.forEach(e=>{e.width=Math.max(1.5,Math.min(10,(e.amount/maxAmt)*10));});
+
+  graphInited=true;
+  if(graphAnim)cancelAnimationFrame(graphAnim);
+  runGraphSim();
+  if(!canvas._interactionSetup){setupGraphInteraction(canvas);canvas._interactionSetup=true;}
+  },50);
+}
+
+function resetGraphLayout(){graphInited=false;initGraph(true);}
+
+function runGraphSim(){
+  const canvas=document.getElementById('graphCanvas');
+  const ctx=canvas.getContext('2d');
+  const W=canvas.width,H=canvas.height;
+  let steps=0;
+
+  function tick(){
+    // Gentle force — mostly preserves layout, prevents overlap
+    const alpha=Math.max(0.001,0.15*Math.pow(0.995,steps));
+    steps++;
+
+    // Repulsion
+    for(let i=0;i<graphNodes.length;i++){
+      for(let j=i+1;j<graphNodes.length;j++){
+        const a=graphNodes[i],b=graphNodes[j];
+        let dx=b.x-a.x,dy=b.y-a.y;
+        let dist=Math.sqrt(dx*dx+dy*dy)||1;
+        const minDist=(a.r+b.r)*2.5;
+        if(dist<minDist){
+          const force=(minDist-dist)*0.3*alpha;
+          const fx=dx/dist*force;const fy=dy/dist*force;
+          a.vx-=fx;a.vy-=fy;b.vx+=fx;b.vy+=fy;
+        }
+      }
+    }
+
+    // Soft attraction along edges
+    graphEdges.forEach(e=>{
+      const a=graphNodes.find(n=>n.id===e.from);const b=graphNodes.find(n=>n.id===e.to);
+      if(!a||!b)return;
+      let dx=b.x-a.x,dy=b.y-a.y;
+      let dist=Math.sqrt(dx*dx+dy*dy)||1;
+      if(dist>300){const force=(dist-300)*0.001*alpha;const fx=dx/dist*force;const fy=dy/dist*force;a.vx+=fx;a.vy+=fy;b.vx-=fx;b.vy-=fy;}
+    });
+
+    graphNodes.forEach(n=>{
+      if(n===graphDrag)return;
+      n.vx*=0.7;n.vy*=0.7;
+      n.x+=n.vx;n.y+=n.vy;
+      n.x=Math.max(n.r+10,Math.min(W-n.r-10,n.x));
+      n.y=Math.max(n.r+10,Math.min(H-n.r-10,n.y));
+    });
+
+    drawGraph(ctx,W,H);
+    graphAnim=requestAnimationFrame(tick);
+  }
+  tick();
+}
+
+function drawGraph(ctx,W,H){
+  ctx.clearRect(0,0,W,H);
+  const showLabels=document.getElementById('graphShowLabels').checked;
+  const nodeMap={};graphNodes.forEach(n=>{nodeMap[n.id]=n;});
+
+  // Layer labels at top
+  const layers=[[],[],[],[]];
+  graphNodes.forEach(n=>{layers[n.layer].push(n);});
+  layers.forEach((layer,li)=>{
+    if(!layer.length)return;
+    const avgX=layer.reduce((s,n)=>s+n.x,0)/layer.length;
+    ctx.font='600 18px "IBM Plex Mono"';ctx.fillStyle=LAYER_LABEL_COLORS[li];ctx.globalAlpha=0.2;
+    ctx.textAlign='center';ctx.textBaseline='top';
+    ctx.fillText(LAYER_LABELS[li].toUpperCase(),avgX,20);
+    ctx.globalAlpha=1;
+  });
+
+  // Draw linked-pair connectors (dashed line between debt and its asset)
+  accounts.filter(a=>a.linkedTo).forEach(debt=>{
+    const dNode=nodeMap[debt.id];const aNode=nodeMap[debt.linkedTo];
+    if(!dNode||!aNode)return;
+    ctx.beginPath();ctx.setLineDash([8,6]);
+    ctx.moveTo(dNode.x,dNode.y);ctx.lineTo(aNode.x,aNode.y);
+    ctx.strokeStyle='#9b8afb';ctx.lineWidth=2;ctx.globalAlpha=0.2;ctx.stroke();
+    ctx.setLineDash([]);ctx.globalAlpha=1;
+    // Equity label at midpoint
+    const mx=(dNode.x+aNode.x)/2,my=(dNode.y+aNode.y)/2;
+    const dBal=simData?simData.finalBalances[debt.id]||0:debt.balance;
+    const aBal=simData?simData.finalBalances[debt.linkedTo]||0:(accounts.find(a=>a.id===debt.linkedTo)?.balance||0);
+    const equity=aBal+dBal;
+    ctx.font='500 16px "IBM Plex Mono"';ctx.fillStyle='#9b8afb';ctx.globalAlpha=0.5;
+    ctx.textAlign='center';ctx.textBaseline='bottom';
+    ctx.fillText('equity '+( equity>=0?'+':'')+( Math.abs(equity)>=1000?'$'+(equity/1000).toFixed(0)+'k':'$'+Math.round(equity)),mx,my-4);
+    ctx.globalAlpha=1;
+  });
+
+  // Edges
+  graphEdges.forEach(e=>{
+    const a=nodeMap[e.from],b=nodeMap[e.to];if(!a||!b)return;
+    const dx=b.x-a.x,dy=b.y-a.y;
+    const dist=Math.sqrt(dx*dx+dy*dy)||1;
+    const nx=dx/dist,ny=dy/dist;
+    const x1=a.x+nx*a.r,y1=a.y+ny*a.r;
+    const x2=b.x-nx*b.r,y2=b.y-ny*b.r;
+    const col=CAT_COLORS[e.category]||'#6a7490';
+
+    // Curved path
+    const mx=(x1+x2)/2,my=(y1+y2)/2;
+    const cpOff=Math.max(30,dist*0.2);
+    const perpX=-(y2-y1)/dist*cpOff*0.15;
+    const perpY=(x2-x1)/dist*cpOff*0.15;
+    ctx.beginPath();
+    ctx.moveTo(x1,y1);ctx.quadraticCurveTo(mx+perpX,my+perpY,x2,y2);
+    ctx.strokeStyle=col;ctx.lineWidth=e.width*2;ctx.globalAlpha=0.3;ctx.stroke();ctx.globalAlpha=1;
+
+    // Arrowhead
+    const angle=Math.atan2(y2-(my+perpY),x2-(mx+perpX));
+    const hl=12+e.width;
+    ctx.beginPath();
+    ctx.moveTo(x2,y2);
+    ctx.lineTo(x2-hl*Math.cos(angle-0.35),y2-hl*Math.sin(angle-0.35));
+    ctx.moveTo(x2,y2);
+    ctx.lineTo(x2-hl*Math.cos(angle+0.35),y2-hl*Math.sin(angle+0.35));
+    ctx.strokeStyle=col;ctx.lineWidth=Math.max(2,e.width);ctx.globalAlpha=0.5;ctx.stroke();ctx.globalAlpha=1;
+
+    if(showLabels&&e.amount>0){
+      ctx.font='500 18px "IBM Plex Mono"';ctx.fillStyle=col;ctx.globalAlpha=0.65;
+      ctx.textAlign='center';ctx.textBaseline='bottom';
+      ctx.fillText('$'+Math.round(e.amount).toLocaleString(),mx+perpX,my+perpY-6);
+      ctx.globalAlpha=1;
+    }
+  });
+
+  // Nodes
+  graphNodes.forEach(n=>{
+    const col=ACCT_COLORS[n.type]||'#6a7490';const isExt=n.external;
+    // Glow
+    ctx.beginPath();ctx.arc(n.x,n.y,n.r+5,0,Math.PI*2);ctx.fillStyle=col;ctx.globalAlpha=isExt?0.03:0.06;ctx.fill();ctx.globalAlpha=1;
+    // Circle
+    ctx.beginPath();ctx.arc(n.x,n.y,n.r,0,Math.PI*2);ctx.fillStyle='#0f1117';ctx.fill();
+    ctx.lineWidth=isExt?1.5:2.5;ctx.strokeStyle=col;
+    if(isExt){ctx.setLineDash([6,4]);ctx.stroke();ctx.setLineDash([]);}else ctx.stroke();
+    // Balance
+    const bal=simData?simData.finalBalances[n.id]:n.balance;
+    if(bal!==0||!isExt){
+      ctx.font=`600 ${isExt?14:16}px "IBM Plex Mono"`;ctx.fillStyle=col;ctx.textAlign='center';ctx.textBaseline='middle';
+      const short=Math.abs(bal)>=1000?'$'+(Math.abs(bal)/1000).toFixed(0)+'k':'$'+Math.round(Math.abs(bal));
+      ctx.fillText(short,n.x,n.y);
+    }
+    // Label
+    ctx.font=`500 ${isExt?16:20}px "IBM Plex Mono"`;ctx.fillStyle=isExt?'#4a5268':'#a0a8be';
+    ctx.textAlign='center';ctx.textBaseline='top';
+    const label=n.label.length>14?n.label.slice(0,13)+'…':n.label;
+    ctx.fillText(label,n.x,n.y+n.r+8);
+  });
+}
+
+function renderGraph(){if(document.getElementById('v-graph').classList.contains('active'))initGraph();}
+
+function setupGraphInteraction(canvas){
+  const dpr=2;let dragging=null,hovered=null;
+  const getPos=e=>{const r=canvas.getBoundingClientRect();return{x:(e.clientX-r.left)*dpr,y:(e.clientY-r.top)*dpr};};
+  const hitNode=pos=>graphNodes.find(n=>Math.hypot(n.x-pos.x,n.y-pos.y)<n.r+8);
+  const tooltip=document.getElementById('graphTooltip');
+
+  canvas.onmousedown=e=>{const pos=getPos(e);const node=hitNode(pos);if(node){dragging=node;graphDrag=node;canvas.style.cursor='grabbing';}};
+  canvas.onmousemove=e=>{
+    const pos=getPos(e);
+    if(dragging){dragging.x=pos.x;dragging.y=pos.y;dragging.vx=0;dragging.vy=0;return;}
+    const node=hitNode(pos);
+    if(node&&node!==hovered){
+      hovered=node;canvas.style.cursor='pointer';
+      const incoming=graphEdges.filter(ed=>ed.to===node.id);
+      const outgoing=graphEdges.filter(ed=>ed.from===node.id);
+      const bal=simData?simData.finalBalances[node.id]:node.balance;
+      let html=`<div style="font-weight:600;margin-bottom:4px;color:${ACCT_COLORS[node.type]||'#a0a8be'}">${node.label}</div>`;
+      if(!node.external)html+=`<div style="color:#a0a8be">Balance: <span style="color:#2dd4a8">$${(bal||0).toLocaleString('en-US',{minimumFractionDigits:2})}</span></div>`;
+      else if(bal!==0)html+=`<div style="color:#a0a8be">Cumulative: <span style="color:${bal>0?'#2dd4a8':'#ef6461'}">$${Math.abs(bal||0).toLocaleString('en-US',{minimumFractionDigits:2})}</span></div>`;
+      if(incoming.length)html+=`<div style="margin-top:4px;color:#6a7490">In: ${incoming.map(ed=>'$'+Math.round(ed.amount).toLocaleString()+'/mo').join(', ')}</div>`;
+      if(outgoing.length)html+=`<div style="color:#6a7490">Out: ${outgoing.map(ed=>'$'+Math.round(ed.amount).toLocaleString()+'/mo').join(', ')}</div>`;
+      tooltip.innerHTML=html;tooltip.style.display='block';
+      tooltip.style.left=(e.clientX+14)+'px';tooltip.style.top=(e.clientY+14)+'px';
+    } else if(!node){hovered=null;canvas.style.cursor='grab';tooltip.style.display='none';}
+  };
+  canvas.onmouseup=()=>{dragging=null;graphDrag=null;canvas.style.cursor='grab';};
+  canvas.onmouseleave=()=>{dragging=null;graphDrag=null;canvas.style.cursor='grab';tooltip.style.display='none';hovered=null;};
+  window.addEventListener('resize',()=>{if(document.getElementById('v-graph').classList.contains('active'))initGraph();});
+}
+
+// ═══════ PERSISTENCE ═══════
+function exportJSON(){const data={version:'v2-3',exported:new Date().toISOString(),accounts,flows,customFlowCats,flowCatDisplay:FLOW_CAT_DISPLAY,config:{startDate:document.getElementById('cfgStart').value,months:parseInt(document.getElementById('cfgMonths').value)}};const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));a.download=`cashflow_v2_${fmtD(new Date())}.json`;a.click();}
+function doImport(e){const file=e.target.files[0];if(!file)return;const r=new FileReader();r.onload=ev=>{try{const d=JSON.parse(ev.target.result);if(d.accounts)accounts=d.accounts;if(d.flows)flows=d.flows;if(d.customFlowCats)customFlowCats=d.customFlowCats;if(d.flowCatDisplay)Object.assign(FLOW_CAT_DISPLAY,d.flowCatDisplay);if(d.config){document.getElementById('cfgStart').value=d.config.startDate;document.getElementById('cfgMonths').value=d.config.months;}renderFlows();simulate();}catch(err){alert('Invalid JSON');}};r.readAsText(file);e.target.value='';}
+function saveLS(){try{localStorage.setItem('cfe_v2e',JSON.stringify({accounts,flows,customFlowCats,flowCatDisplay:FLOW_CAT_DISPLAY,config:{startDate:document.getElementById('cfgStart').value,months:parseInt(document.getElementById('cfgMonths').value)}}));}catch(e){}}
+function loadLS(){try{const raw=localStorage.getItem('cfe_v2e');if(!raw)return false;const d=JSON.parse(raw);if(d.accounts)accounts=d.accounts;if(d.flows)flows=d.flows;if(d.customFlowCats)customFlowCats=d.customFlowCats;if(d.flowCatDisplay)Object.assign(FLOW_CAT_DISPLAY,d.flowCatDisplay);if(d.config){document.getElementById('cfgStart').value=d.config.startDate;document.getElementById('cfgMonths').value=d.config.months;}return true;}catch(e){return false;}}
+
+// ═══════ KEYBOARD ═══════
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeAcctModal();closeFlowModal();cancelNewFlowCat();closeSchedule();}if(e.key==='Enter'){if(document.activeElement&&document.activeElement.id==='newFlowCatInput'){e.preventDefault();confirmNewFlowCat();return;}if(document.getElementById('acctModal').style.display==='flex')saveAcct();else if(document.getElementById('flowModal').style.display==='flex')saveFlow();}});
+
+// ═══════ INIT ═══════
+loadLS();simulate();
+</script>
+</body>
+</html>
