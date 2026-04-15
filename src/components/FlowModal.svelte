@@ -1,6 +1,7 @@
 <script>
   import { store, ui, closeFlowModal, addFlow, updateFlow, saveLS } from '../lib/state.svelte.js';
   import { DEFAULT_FLOW_CATS } from '../lib/constants.js';
+  import { parseDate, fmtD, getOccurrences } from '../lib/dates.js';
 
   const editing = $derived(ui.flowModal?.id ? store.flows.find((f) => f.id === ui.flowModal.id) : null);
 
@@ -16,6 +17,9 @@
   let enabled = $state(true);
   let addingCat = $state(false);
   let newCatName = $state('');
+  let overrideEntries = $state([]);
+  let newOverrideDate = $state('');
+  let overridesOpen = $state(false);
 
   const allCats = $derived.by(() => {
     const fromFlows = store.flows.map((f) => f.category).filter((c) => c && !DEFAULT_FLOW_CATS.includes(c));
@@ -40,6 +44,10 @@
       category = editing.category;
       group = editing.group || '';
       enabled = editing.enabled;
+      overrideEntries = Object.entries(editing.overrides || {})
+        .map(([date, o]) => ({ date, skip: !!o.skip, amount: o.amount ?? '' }))
+        .sort((a, b) => a.date.localeCompare(b.date));
+      overridesOpen = overrideEntries.length > 0;
     } else {
       name = '';
       from = 'a-chk';
@@ -52,7 +60,10 @@
       category = 'other';
       group = '';
       enabled = true;
+      overrideEntries = [];
+      overridesOpen = false;
     }
+    newOverrideDate = '';
   });
 
   function confirmNewCat() {
@@ -69,8 +80,29 @@
     newCatName = '';
   }
 
+  function addOverride() {
+    const d = newOverrideDate;
+    if (!d) return;
+    if (overrideEntries.some((e) => e.date === d)) return;
+    overrideEntries = [...overrideEntries, { date: d, skip: false, amount: '' }]
+      .sort((a, b) => a.date.localeCompare(b.date));
+    newOverrideDate = '';
+  }
+
+  function removeOverride(date) {
+    overrideEntries = overrideEntries.filter((e) => e.date !== date);
+  }
+
   function save() {
     if (!name.trim() || !amount || !start) return;
+    const overrides = {};
+    for (const e of overrideEntries) {
+      if (!e.date) continue;
+      const o = {};
+      if (e.skip) o.skip = true;
+      else if (e.amount !== '' && !isNaN(parseFloat(e.amount))) o.amount = parseFloat(e.amount);
+      if (Object.keys(o).length) overrides[e.date] = o;
+    }
     const patch = {
       name: name.trim(),
       from,
@@ -82,6 +114,7 @@
       category,
       group: group.trim().toLowerCase() || null,
       enabled,
+      overrides: Object.keys(overrides).length ? overrides : undefined,
     };
     if (editing) updateFlow(editing.id, patch);
     else addFlow(patch);
@@ -93,6 +126,21 @@
 
   const internalOpts = $derived(store.accounts.filter((a) => !a.external));
   const externalOpts = $derived(store.accounts.filter((a) => a.external));
+
+  const availableOverrideDates = $derived.by(() => {
+    if (!start || period === 'once') return [];
+    const projStart = parseDate(store.config.startDate);
+    const projEnd = new Date(projStart);
+    projEnd.setMonth(projEnd.getMonth() + parseInt(store.config.months));
+    const occs = getOccurrences(projStart, projEnd, period, start, end || null);
+    const used = new Set(overrideEntries.map((e) => e.date));
+    return occs.map(fmtD).filter((d) => !used.has(d));
+  });
+
+  const formatDate = (ds) => {
+    const d = parseDate(ds);
+    return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+  };
 </script>
 
 <div class="modal-overlay" role="presentation" onclick={onBackdrop}>
@@ -193,9 +241,95 @@
       </div>
     </div>
 
+    {#if period !== 'once'}
+      <details class="overrides" bind:open={overridesOpen}>
+        <summary>Overrides ({overrideEntries.length})</summary>
+        <div class="override-help">Skip or change amount for specific occurrences within the current projection window.</div>
+        {#each overrideEntries as e (e.date)}
+          <div class="override-row">
+            <span class="override-date">{formatDate(e.date)}</span>
+            <label class="override-skip">
+              <input type="checkbox" bind:checked={e.skip} /> Skip
+            </label>
+            <input
+              type="number"
+              step="0.01"
+              placeholder={e.skip ? '—' : String(amount || '0')}
+              bind:value={e.amount}
+              disabled={e.skip}
+            />
+            <button type="button" class="del" onclick={() => removeOverride(e.date)}>✕</button>
+          </div>
+        {/each}
+        <div class="override-row">
+          <select bind:value={newOverrideDate} disabled={availableOverrideDates.length === 0}>
+            <option value="">
+              {availableOverrideDates.length === 0 ? 'No occurrences available' : 'Pick an occurrence…'}
+            </option>
+            {#each availableOverrideDates as d (d)}
+              <option value={d}>{formatDate(d)}</option>
+            {/each}
+          </select>
+          <button type="button" class="act" onclick={addOverride} disabled={!newOverrideDate}>+ Add</button>
+        </div>
+      </details>
+    {/if}
+
     <div class="mf">
       <button onclick={closeFlowModal}>Cancel</button>
       <button class="pri" onclick={save}>{editing ? 'Save' : 'Add'}</button>
     </div>
   </div>
 </div>
+
+<style>
+  .overrides {
+    margin-top: 14px;
+    border-top: 1px solid var(--b1);
+    padding-top: 12px;
+  }
+  .overrides summary {
+    font-family: var(--mono);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--t3);
+    cursor: pointer;
+    user-select: none;
+    margin-bottom: 6px;
+  }
+  .overrides summary:hover { color: var(--t2); }
+  .override-help {
+    font-family: var(--mono);
+    font-size: 9px;
+    color: var(--t4);
+    margin-bottom: 8px;
+  }
+  .override-row {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    margin-bottom: 6px;
+  }
+  .override-row select { width: 200px; }
+  .override-row input[type="number"] { flex: 1; min-width: 0; }
+  .override-date {
+    width: 135px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--t2);
+    white-space: nowrap;
+  }
+  .override-skip {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--t2);
+    margin: 0;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .override-skip input { margin: 0; }
+</style>

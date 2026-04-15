@@ -13,9 +13,14 @@ export function runSimulation(accounts, flows, config) {
   const allTransfers = [];
   flows.filter((f) => f.enabled).forEach((f) => {
     getOccurrences(startDate, endDate, f.period, f.start, f.end).forEach((d) => {
+      const ds = fmtD(d);
+      const override = f.overrides?.[ds];
+      if (override?.skip) return;
+      const amount = override?.amount ?? f.amount;
       allTransfers.push({
         date: d, name: f.name, from: f.from, to: f.to,
-        amount: f.amount, category: f.category, group: f.group, flowId: f.id,
+        amount, category: f.category, group: f.group, flowId: f.id,
+        overridden: override != null,
       });
     });
   });
