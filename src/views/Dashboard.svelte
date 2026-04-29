@@ -53,8 +53,19 @@
     const catTotals = {};
     const extIds = new Set(externalAccts.map((a) => a.id));
     const intIds = new Set(internalAccts.map((a) => a.id));
+    const debtIds = new Set(internalAccts.filter((a) => a.type === 'debt').map((a) => a.id));
+    const accountsWithOutflows = new Set(
+      store.flows.filter((fl) => fl.enabled).map((fl) => fl.from)
+    );
+    // A flow is an expense if it lands at a "sink": an external account, or
+    // a debt account that has no outflows of its own (so the debt account is
+    // effectively terminal). Once purchase-flows are routed through a debt
+    // account, that account gains outflows and the inflow demotes to a
+    // transfer — the leaf-bound flows then carry the expense category.
+    const isExpenseSink = (id) =>
+      extIds.has(id) || (debtIds.has(id) && !accountsWithOutflows.has(id));
     store.flows
-      .filter((fl) => fl.enabled && intIds.has(fl.from) && extIds.has(fl.to) && !fl.group)
+      .filter((fl) => fl.enabled && intIds.has(fl.from) && isExpenseSink(fl.to))
       .forEach((fl) => {
         const cat = fl.category;
         if (!catTotals[cat]) catTotals[cat] = 0;

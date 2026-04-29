@@ -7,6 +7,7 @@
   import Accounts from './views/Accounts.svelte';
   import Flows from './views/Flows.svelte';
   import Graph from './views/Graph.svelte';
+  import Schedule from './views/Schedule.svelte';
   import AccountModal from './components/AccountModal.svelte';
   import FlowModal from './components/FlowModal.svelte';
   import ScheduleModal from './components/ScheduleModal.svelte';
@@ -18,6 +19,7 @@
     { id: 'accounts', label: 'Accounts' },
     { id: 'flows', label: 'Flows' },
     { id: 'graph', label: 'Graph' },
+    { id: 'schedule', label: 'Schedule' },
   ];
 
   function onImport(e) {
@@ -69,6 +71,8 @@
     <Flows />
   {:else if store.activeView === 'graph'}
     <Graph />
+  {:else if store.activeView === 'schedule'}
+    <Schedule />
   {/if}
 </div>
 

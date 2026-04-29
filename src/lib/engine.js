@@ -40,6 +40,7 @@ export function runSimulation(accounts, flows, config) {
   let minBal = chkId ? balances[chkId] : Infinity;
   let minBalDate = startDate;
   const monthlySnapshots = [];
+  const dailyBalances = [];
   let lastSnapMonth = '';
 
   for (let i = 0; i <= totalDays; i++) {
@@ -90,6 +91,10 @@ export function runSimulation(accounts, flows, config) {
 
     if (chkId && balances[chkId] < minBal) { minBal = balances[chkId]; minBalDate = date; }
 
+    const dayBalances = {};
+    internalIds.forEach((id) => { dayBalances[id] = balances[id]; });
+    dailyBalances.push({ date: new Date(date), balances: dayBalances });
+
     const mk = date.getFullYear() + '-' + String(date.getMonth() + 1).padStart(2, '0');
     if (mk !== lastSnapMonth) {
       if (lastSnapMonth) {
@@ -120,6 +125,7 @@ export function runSimulation(accounts, flows, config) {
   return {
     allTransfers,
     monthlySnapshots,
+    dailyBalances,
     startDate,
     endDate,
     minBal,
