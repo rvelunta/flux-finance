@@ -179,10 +179,8 @@
       ctx.globalAlpha = 1;
       const mx = (dNode.x + aNode.x) / 2;
       const my = (dNode.y + aNode.y) / 2;
-      const dBal = store.simData ? store.simData.finalBalances[debt.id] || 0 : debt.balance;
-      const aBal = store.simData
-        ? store.simData.finalBalances[debt.linkedTo] || 0
-        : (store.accounts.find((a) => a.id === debt.linkedTo)?.balance || 0);
+      const dBal = debt.balance;
+      const aBal = store.accounts.find((a) => a.id === debt.linkedTo)?.balance || 0;
       const equity = aBal + dBal;
       ctx.font = '500 16px "IBM Plex Mono"';
       ctx.fillStyle = '#9b8afb';
@@ -262,7 +260,9 @@
       if (isExt) { ctx.setLineDash([6, 4]); ctx.stroke(); ctx.setLineDash([]); }
       else ctx.stroke();
 
-      const bal = store.simData ? store.simData.finalBalances[n.id] : n.balance;
+      const bal = isExt
+        ? (store.simData ? store.simData.finalBalances[n.id] || 0 : 0)
+        : n.balance;
       if (bal !== 0 || !isExt) {
         ctx.font = `600 ${isExt ? 14 : 16}px "IBM Plex Mono"`;
         ctx.fillStyle = col;
@@ -314,7 +314,9 @@
       canvas.style.cursor = 'pointer';
       const incoming = graphEdges.filter((ed) => ed.to === node.id);
       const outgoing = graphEdges.filter((ed) => ed.from === node.id);
-      const bal = store.simData ? store.simData.finalBalances[node.id] : node.balance;
+      const bal = node.external
+        ? (store.simData ? store.simData.finalBalances[node.id] || 0 : 0)
+        : node.balance;
       let html = `<div style="font-weight:600;margin-bottom:4px;color:${ACCT_COLORS[node.type] || '#a0a8be'}">${node.label}</div>`;
       if (!node.external) html += `<div style="color:#a0a8be">Balance: <span style="color:#2dd4a8">$${(bal || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</span></div>`;
       else if (bal !== 0) html += `<div style="color:#a0a8be">Cumulative: <span style="color:${bal > 0 ? '#2dd4a8' : '#ef6461'}">$${Math.abs(bal || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</span></div>`;

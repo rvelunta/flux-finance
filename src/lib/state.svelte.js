@@ -1,5 +1,6 @@
 import { SEED_ACCOUNTS, SEED_FLOWS } from './seed.js';
 import { FLOW_CAT_DISPLAY as SEED_CAT_DISPLAY } from './constants.js';
+import { fmtD, parseDate } from './dates.js';
 import { runSimulation } from './engine.js';
 
 const LS_KEY = 'flux_v3';
@@ -17,7 +18,16 @@ function loadInitial() {
   } catch { return null; }
 }
 
+function defaultEndFrom(startStr, months) {
+  const d = parseDate(startStr) || new Date();
+  d.setMonth(d.getMonth() + months);
+  return fmtD(d);
+}
+
 const saved = loadInitial();
+const initStart = saved?.config?.startDate ?? '2026-04-13';
+const initEnd = saved?.config?.endDate
+  ?? defaultEndFrom(initStart, saved?.config?.months ?? 6);
 
 export const store = $state({
   accounts: saved?.accounts ?? structuredClone(SEED_ACCOUNTS),
@@ -25,11 +35,12 @@ export const store = $state({
   customFlowCats: saved?.customFlowCats ?? [],
   flowCatDisplay: { ...SEED_CAT_DISPLAY, ...(saved?.flowCatDisplay ?? {}) },
   config: {
-    startDate: saved?.config?.startDate ?? '2026-04-13',
-    months: saved?.config?.months ?? 6,
+    startDate: initStart,
+    endDate: initEnd,
+    resolution: saved?.config?.resolution ?? 'monthly',
   },
   simData: null,
-  activeView: 'dashboard',
+  activeView: 'projection',
   chartSelectedAccts: new Set(['a-chk']),
   acctTypeFilter: new Set(),
   flowCatFilter: new Set(),

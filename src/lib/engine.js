@@ -2,9 +2,7 @@ import { parseDate, fmtD, addDays, daysBetween, getOccurrences } from './dates.j
 
 export function runSimulation(accounts, flows, config) {
   const startDate = parseDate(config.startDate);
-  const months = parseInt(config.months);
-  const endDate = new Date(startDate);
-  endDate.setMonth(endDate.getMonth() + months);
+  const endDate = parseDate(config.endDate);
   const totalDays = daysBetween(startDate, endDate);
 
   const balances = {};

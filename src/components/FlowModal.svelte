@@ -130,8 +130,7 @@
   const availableOverrideDates = $derived.by(() => {
     if (!start || period === 'once') return [];
     const projStart = parseDate(store.config.startDate);
-    const projEnd = new Date(projStart);
-    projEnd.setMonth(projEnd.getMonth() + parseInt(store.config.months));
+    const projEnd = parseDate(store.config.endDate);
     const occs = getOccurrences(projStart, projEnd, period, start, end || null);
     const used = new Set(overrideEntries.map((e) => e.date));
     return occs.map(fmtD).filter((d) => !used.has(d));

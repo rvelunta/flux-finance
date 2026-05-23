@@ -1,0 +1,19 @@
+# FLUX Roadmap
+
+Major versions are **product eras**. Minor versions (3.1, 3.2, …) are per-feature increments; patch versions are fixes.
+
+## v3 — Feature-rich web (current)
+
+The "visionary" era. Features the original tool never had, built on Svelte 5 + Vite.
+
+Key themes:
+- **Scenario building** — save/load/compare named configurations (e.g., "baseline" vs. "refinance at 5%")
+- **Visualization improvements** — richer, more exploratory ways to understand projected cash flow
+
+Shipped and planned work is tracked in [CHANGELOG.md](CHANGELOG.md).
+
+## v4 — Mobile
+
+Capacitor-wrap the same Svelte codebase for iOS/Android. No native rewrite planned. Prerequisites: the web app's feature set is "done enough" and the UI has been validated on small screens.
+
+Architectural choices in v3 should keep the Capacitor path open — avoid server-backend coupling and browser APIs iOS Safari doesn't support.

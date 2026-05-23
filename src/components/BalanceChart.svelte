@@ -3,7 +3,7 @@
   import { ACCT_COLORS } from '../lib/constants.js';
   import { fmtShort } from '../lib/format.js';
 
-  let { snapshots, selectedAccounts, mode, projMonths } = $props();
+  let { snapshots, selectedAccounts, mode, projMonths, resolution = 'monthly' } = $props();
 
   let canvas;
   let chart = null;
@@ -12,11 +12,19 @@
     if (!canvas || !snapshots?.length) return;
     if (chart) chart.destroy();
 
-    const labels = snapshots.map((s) =>
-      projMonths > 120
+    const labels = snapshots.map((s) => {
+      if (resolution === 'daily') {
+        return projMonths > 3
+          ? s.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+          : s.date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+      }
+      if (resolution === 'weekly') {
+        return s.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      }
+      return projMonths > 120
         ? s.date.getFullYear().toString()
-        : s.date.toLocaleDateString('en-US', { month: 'short', year: '2-digit' })
-    );
+        : s.date.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+    });
 
     let datasets;
     if (mode === 'stacked') {

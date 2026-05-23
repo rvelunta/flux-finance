@@ -1,20 +1,41 @@
 <script>
-  import { store, simulate } from '../lib/state.svelte.js';
-  import { ACCT_COLORS, CAT_COLORS, TYPE_LABELS } from '../lib/constants.js';
+  import { store } from '../lib/state.svelte.js';
+  import { ACCT_COLORS, CAT_COLORS } from '../lib/constants.js';
   import { fmt0, fmt2, toMonthlyAmt } from '../lib/format.js';
-  import BalanceChart from '../components/BalanceChart.svelte';
+  import { parseDate, daysBetween } from '../lib/dates.js';
   import CashflowChart from '../components/CashflowChart.svelte';
 
-  let pickerOpen = $state(false);
-  let chartMode = $state('lines');
+  let cfResolution = $state('month');
+
+  const projMonths = $derived.by(() => {
+    const s = parseDate(store.config.startDate);
+    const e = parseDate(store.config.endDate);
+    if (!s || !e) return 1;
+    return Math.max(1, Math.round(daysBetween(s, e) / 30.44));
+  });
+
+  const resolutionOptions = [
+    { id: 'day', label: 'Daily', maxMonths: 6 },
+    { id: 'week', label: 'Weekly', maxMonths: 24 },
+    { id: 'month', label: 'Monthly', maxMonths: 180 },
+    { id: 'quarter', label: 'Quarterly', maxMonths: 600 },
+    { id: 'year', label: 'Yearly', maxMonths: Infinity },
+  ];
+
+  const availableResolutions = $derived(
+    resolutionOptions.map((r) => ({ ...r, enabled: projMonths <= r.maxMonths }))
+  );
+
+  $effect(() => {
+    const current = availableResolutions.find((r) => r.id === cfResolution);
+    if (!current?.enabled) {
+      cfResolution = availableResolutions.find((r) => r.enabled)?.id ?? 'year';
+    }
+  });
 
   const internalAccts = $derived(store.accounts.filter((a) => !a.external));
   const externalAccts = $derived(store.accounts.filter((a) => a.external));
   const chkId = $derived(store.accounts.find((a) => a.type === 'checking' && !a.external)?.id);
-
-  const selectedAccounts = $derived(
-    internalAccts.filter((a) => store.chartSelectedAccts.has(a.id))
-  );
 
   const kpis = $derived.by(() => {
     if (!store.simData) return null;
@@ -22,7 +43,7 @@
     const finalNW = internalAccts.reduce((s, a) => s + (sim.finalBalances[a.id] || 0), 0);
     const startNW = internalAccts.reduce((s, a) => s + a.balance, 0);
     const nwDelta = finalNW - startNW;
-    const months = parseInt(store.config.months);
+    const months = projMonths;
     let tIn = 0, tOut = 0;
     if (chkId) sim.allTransfers.forEach((t) => {
       if (t.to === chkId) tIn += t.amount;
@@ -115,44 +136,16 @@
     });
   });
 
-  function toggleChartAcct(id) {
-    const next = new Set(store.chartSelectedAccts);
-    if (next.has(id)) next.delete(id); else next.add(id);
-    store.chartSelectedAccts = next;
-  }
-  function selectAll() { store.chartSelectedAccts = new Set(internalAccts.map((a) => a.id)); }
-  function selectNone() { store.chartSelectedAccts = new Set(); }
-  function selectPreset(p) {
-    const next = new Set();
-    if (p === 'liquid') internalAccts.filter((a) => a.type === 'checking' || a.type === 'savings').forEach((a) => next.add(a.id));
-    else if (p === 'nw') internalAccts.forEach((a) => next.add(a.id));
-    store.chartSelectedAccts = next;
-  }
-
-  function onDocClick(e) {
-    if (!e.target.closest('#acctPickerWrap')) pickerOpen = false;
-  }
 </script>
-
-<svelte:document onclick={onDocClick} />
 
 <div class="view active" style="flex-direction:column;overflow:hidden;">
   <div class="ctrl">
-    <label for="cfgStart">Start</label>
-    <input id="cfgStart" type="date" bind:value={store.config.startDate} />
-    <label for="cfgMonths">Project</label>
-    <select id="cfgMonths" bind:value={store.config.months}>
-      <option value={3}>3 mo</option>
-      <option value={6}>6 mo</option>
-      <option value={12}>1 yr</option>
-      <option value={24}>2 yr</option>
-      <option value={60}>5 yr</option>
-      <option value={120}>10 yr</option>
-      <option value={180}>15 yr</option>
-      <option value={360}>30 yr</option>
-      <option value={600}>50 yr</option>
-    </select>
-    <button class="pri" onclick={simulate}>Run Simulation</button>
+    <span style="font-family:var(--mono);font-size:10px;color:var(--t3);">
+      Projection {store.config.startDate} → {store.config.endDate} · ≈ {projMonths} mo
+    </span>
+    <span style="margin-left:auto;font-family:var(--mono);font-size:10px;color:var(--t4);">
+      Set range on the Projection tab
+    </span>
   </div>
 
   {#if kpis}
@@ -189,53 +182,6 @@
 
   <div class="dash-scroll">
     <div class="dash-grid">
-      <div class="full">
-        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
-          <div class="dash-h" style="margin:0;">Balance over time</div>
-          <div style="display:flex;gap:8px;align-items:center;">
-            <select bind:value={chartMode} style="font-size:10px;padding:3px 6px;width:auto;">
-              <option value="lines">Individual lines</option>
-              <option value="stacked">Stacked area (NW)</option>
-            </select>
-            <div style="position:relative;" id="acctPickerWrap">
-              <button onclick={(e) => { e.stopPropagation(); pickerOpen = !pickerOpen; }} style="font-size:10px;padding:4px 10px;min-width:130px;text-align:left;">
-                <span>{store.chartSelectedAccts.size === 0 ? 'No accounts' : store.chartSelectedAccts.size === 1 ? '1 account' : store.chartSelectedAccts.size + ' accounts'}</span>
-                <span style="float:right;color:var(--t4);">▾</span>
-              </button>
-              {#if pickerOpen}
-                <div style="position:absolute;right:0;top:100%;margin-top:4px;background:var(--s1);border:1px solid var(--b2);border-radius:6px;padding:6px 0;z-index:20;min-width:220px;max-height:320px;overflow-y:auto;">
-                  <div style="padding:4px 12px 8px;display:flex;gap:6px;border-bottom:1px solid var(--b1);margin-bottom:4px;">
-                    <button onclick={selectAll} style="font-size:9px;padding:2px 6px;">All</button>
-                    <button onclick={selectNone} style="font-size:9px;padding:2px 6px;">None</button>
-                    <button onclick={() => selectPreset('liquid')} style="font-size:9px;padding:2px 6px;">Liquid</button>
-                    <button onclick={() => selectPreset('nw')} style="font-size:9px;padding:2px 6px;">Net Worth</button>
-                  </div>
-                  {#each internalAccts as a (a.id)}
-                    {@const on = store.chartSelectedAccts.has(a.id)}
-                    <label style="display:flex;align-items:center;gap:8px;padding:5px 12px;cursor:pointer;font-family:var(--mono);font-size:11px;color:{on ? 'var(--t1)' : 'var(--t3)'};">
-                      <input type="checkbox" checked={on} onchange={() => toggleChartAcct(a.id)} />
-                      <span style="width:8px;height:8px;border-radius:50%;background:{ACCT_COLORS[a.type] || '#6a7490'};flex-shrink:0;"></span>
-                      {a.name}
-                      <span style="margin-left:auto;font-size:9px;color:var(--t4);">{TYPE_LABELS[a.type] || a.type}</span>
-                    </label>
-                  {/each}
-                </div>
-              {/if}
-            </div>
-          </div>
-        </div>
-        <div class="dash-chart-wrap tall">
-          {#if store.simData}
-            <BalanceChart
-              snapshots={store.simData.monthlySnapshots}
-              {selectedAccounts}
-              mode={chartMode}
-              projMonths={store.config.months}
-            />
-          {/if}
-        </div>
-      </div>
-
       <div>
         <div class="dash-h">Account balances (end of period)</div>
         {#if store.simData && kpis}
@@ -271,10 +217,17 @@
       </div>
 
       <div>
-        <div class="dash-h">Monthly cash flow (checking)</div>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
+          <div class="dash-h" style="margin:0;">Cash flow (checking)</div>
+          <select bind:value={cfResolution} style="font-size:10px;padding:3px 6px;width:auto;">
+            {#each availableResolutions as r (r.id)}
+              <option value={r.id} disabled={!r.enabled}>{r.label}</option>
+            {/each}
+          </select>
+        </div>
         <div class="dash-chart-wrap">
           {#if store.simData && chkId}
-            <CashflowChart transfers={store.simData.allTransfers} checkingId={chkId} />
+            <CashflowChart transfers={store.simData.allTransfers} checkingId={chkId} resolution={cfResolution} />
           {/if}
         </div>
       </div>

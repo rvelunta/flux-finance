@@ -3,11 +3,11 @@
     store, ui, exportJSON, importJSON,
     closeAccountModal, closeFlowModal, closeScheduleModal,
   } from './lib/state.svelte.js';
-  import Dashboard from './views/Dashboard.svelte';
+  import Projection from './views/Projection.svelte';
   import Accounts from './views/Accounts.svelte';
   import Flows from './views/Flows.svelte';
   import Graph from './views/Graph.svelte';
-  import Schedule from './views/Schedule.svelte';
+  import OtherTools from './views/OtherTools.svelte';
   import AccountModal from './components/AccountModal.svelte';
   import FlowModal from './components/FlowModal.svelte';
   import ScheduleModal from './components/ScheduleModal.svelte';
@@ -15,11 +15,11 @@
   let fileInput;
 
   const tabs = [
-    { id: 'dashboard', label: 'Dashboard' },
+    { id: 'projection', label: 'Projection' },
     { id: 'accounts', label: 'Accounts' },
     { id: 'flows', label: 'Flows' },
     { id: 'graph', label: 'Graph' },
-    { id: 'schedule', label: 'Schedule' },
+    { id: 'other-tools', label: 'Other tools' },
   ];
 
   function onImport(e) {
@@ -63,16 +63,16 @@
     {/each}
   </div>
 
-  {#if store.activeView === 'dashboard'}
-    <Dashboard />
+  {#if store.activeView === 'projection'}
+    <Projection />
   {:else if store.activeView === 'accounts'}
     <Accounts />
   {:else if store.activeView === 'flows'}
     <Flows />
   {:else if store.activeView === 'graph'}
     <Graph />
-  {:else if store.activeView === 'schedule'}
-    <Schedule />
+  {:else if store.activeView === 'other-tools'}
+    <OtherTools />
   {/if}
 </div>
 
