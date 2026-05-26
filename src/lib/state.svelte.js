@@ -25,7 +25,7 @@ function defaultEndFrom(startStr, months) {
 }
 
 const saved = loadInitial();
-const initStart = saved?.config?.startDate ?? '2026-04-13';
+const initStart = saved?.config?.startDate ?? fmtD(new Date());
 const initEnd = saved?.config?.endDate
   ?? defaultEndFrom(initStart, saved?.config?.months ?? 6);
 

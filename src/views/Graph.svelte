@@ -8,12 +8,15 @@
   let tooltip;
   let showMode = $state('all');
   let showLabels = $state(true);
+  let ctrlOpen = $state(false);
 
   let graphNodes = [];
   let graphEdges = [];
   let graphAnim = null;
   let graphDrag = null;
   let graphInited = false;
+  let currentDpr = 1;
+  let currentScale = 1;
 
   const LAYER_LABELS = ['Deductions', 'Income', 'Accounts', 'Expenses'];
   const LAYER_LABEL_COLORS = ['#ef6461', '#2dd4a8', '#5b9cf6', '#f0b952'];
@@ -46,12 +49,16 @@
   function initGraph(forceReset = false) {
     setTimeout(() => {
       if (!canvas) return;
-      const dpr = 2;
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
       const cssW = canvas.clientWidth;
       const cssH = canvas.clientHeight;
       if (cssW < 50 || cssH < 50) return;
       canvas.width = cssW * dpr;
       canvas.height = cssH * dpr;
+      currentDpr = dpr;
+      // Scale node sizes and fonts based on the smaller canvas dimension so
+      // the layout doesn't overlap on narrow viewports.
+      currentScale = Math.max(0.45, Math.min(1, Math.min(cssW, cssH) / 600));
 
       const showEnabled = showMode === 'enabled';
       const activeFlows = store.flows.filter((f) => showEnabled ? f.enabled : true);
@@ -64,11 +71,13 @@
         .map((a) => ({ id: a.id, label: a.name, type: a.type, balance: a.balance, external: !!a.external, layer: getLayer(a) }));
 
       const preset = buildLayeredPositions(nodeList, W, H);
+      const rInt = 40 * currentScale;
+      const rExt = 28 * currentScale;
 
       graphNodes = nodeList.map((n) => {
         const existing = (!forceReset && graphInited) ? graphNodes.find((gn) => gn.id === n.id) : null;
         const p = preset[n.id] || { x: W / 2, y: H / 2 };
-        return { ...n, x: existing ? existing.x : p.x, y: existing ? existing.y : p.y, vx: 0, vy: 0, r: n.external ? 28 : 40 };
+        return { ...n, x: existing ? existing.x : p.x, y: existing ? existing.y : p.y, vx: 0, vy: 0, r: n.external ? rExt : rInt };
       });
 
       const edgeMap = {};
@@ -151,15 +160,16 @@
 
     const layers = [[], [], [], []];
     graphNodes.forEach((n) => { layers[n.layer].push(n); });
+    const sc = currentScale;
     layers.forEach((layer, li) => {
       if (!layer.length) return;
       const avgX = layer.reduce((s, n) => s + n.x, 0) / layer.length;
-      ctx.font = '600 18px "IBM Plex Mono"';
+      ctx.font = `600 ${Math.round(18 * sc)}px "IBM Plex Mono"`;
       ctx.fillStyle = LAYER_LABEL_COLORS[li];
       ctx.globalAlpha = 0.2;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'top';
-      ctx.fillText(LAYER_LABELS[li].toUpperCase(), avgX, 20);
+      ctx.fillText(LAYER_LABELS[li].toUpperCase(), avgX, 20 * sc);
       ctx.globalAlpha = 1;
     });
 
@@ -182,7 +192,7 @@
       const dBal = debt.balance;
       const aBal = store.accounts.find((a) => a.id === debt.linkedTo)?.balance || 0;
       const equity = aBal + dBal;
-      ctx.font = '500 16px "IBM Plex Mono"';
+      ctx.font = `500 ${Math.round(16 * sc)}px "IBM Plex Mono"`;
       ctx.fillStyle = '#9b8afb';
       ctx.globalAlpha = 0.5;
       ctx.textAlign = 'center';
@@ -231,7 +241,7 @@
       ctx.globalAlpha = 1;
 
       if (showLabels && e.amount > 0) {
-        ctx.font = '500 18px "IBM Plex Mono"';
+        ctx.font = `500 ${Math.round(18 * sc)}px "IBM Plex Mono"`;
         ctx.fillStyle = col;
         ctx.globalAlpha = 0.65;
         ctx.textAlign = 'center';
@@ -264,7 +274,7 @@
         ? (store.simData ? store.simData.finalBalances[n.id] || 0 : 0)
         : n.balance;
       if (bal !== 0 || !isExt) {
-        ctx.font = `600 ${isExt ? 14 : 16}px "IBM Plex Mono"`;
+        ctx.font = `600 ${Math.round((isExt ? 14 : 16) * sc)}px "IBM Plex Mono"`;
         ctx.fillStyle = col;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
@@ -274,7 +284,7 @@
         ctx.fillText(short, n.x, n.y);
       }
 
-      ctx.font = `500 ${isExt ? 16 : 20}px "IBM Plex Mono"`;
+      ctx.font = `500 ${Math.round((isExt ? 16 : 20) * sc)}px "IBM Plex Mono"`;
       ctx.fillStyle = isExt ? '#4a5268' : '#a0a8be';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'top';
@@ -286,46 +296,61 @@
   let dragging = null;
   let hovered = null;
 
-  function getPos(e) {
+  function getPos(clientX, clientY) {
     const r = canvas.getBoundingClientRect();
-    return { x: (e.clientX - r.left) * 2, y: (e.clientY - r.top) * 2 };
+    return { x: (clientX - r.left) * currentDpr, y: (clientY - r.top) * currentDpr };
   }
 
   function hitNode(pos) {
     return graphNodes.find((n) => Math.hypot(n.x - pos.x, n.y - pos.y) < n.r + 8);
   }
 
-  function onMouseDown(e) {
-    const pos = getPos(e);
-    const node = hitNode(pos);
-    if (node) { dragging = node; graphDrag = node; canvas.style.cursor = 'grabbing'; }
+  function showTooltip(node, clientX, clientY) {
+    const incoming = graphEdges.filter((ed) => ed.to === node.id);
+    const outgoing = graphEdges.filter((ed) => ed.from === node.id);
+    const bal = node.external
+      ? (store.simData ? store.simData.finalBalances[node.id] || 0 : 0)
+      : node.balance;
+    let html = `<div style="font-weight:600;margin-bottom:4px;color:${ACCT_COLORS[node.type] || '#a0a8be'}">${node.label}</div>`;
+    if (!node.external) html += `<div style="color:#a0a8be">Balance: <span style="color:#2dd4a8">$${(bal || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</span></div>`;
+    else if (bal !== 0) html += `<div style="color:#a0a8be">Cumulative: <span style="color:${bal > 0 ? '#2dd4a8' : '#ef6461'}">$${Math.abs(bal || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</span></div>`;
+    if (incoming.length) html += `<div style="margin-top:4px;color:#6a7490">In: ${incoming.map((ed) => '$' + Math.round(ed.amount).toLocaleString() + '/mo').join(', ')}</div>`;
+    if (outgoing.length) html += `<div style="color:#6a7490">Out: ${outgoing.map((ed) => '$' + Math.round(ed.amount).toLocaleString() + '/mo').join(', ')}</div>`;
+    tooltip.innerHTML = html;
+    tooltip.style.display = 'block';
+    // Keep tooltip on screen — flip to the left/above edge if needed.
+    const vw = window.innerWidth, vh = window.innerHeight;
+    const tw = 260, th = tooltip.offsetHeight || 80;
+    const left = clientX + tw + 28 > vw ? Math.max(8, clientX - tw - 14) : clientX + 14;
+    const top = clientY + th + 28 > vh ? Math.max(8, clientY - th - 14) : clientY + 14;
+    tooltip.style.left = left + 'px';
+    tooltip.style.top = top + 'px';
   }
 
-  function onMouseMove(e) {
-    const pos = getPos(e);
+  function onPointerDown(clientX, clientY) {
+    const pos = getPos(clientX, clientY);
+    const node = hitNode(pos);
+    if (node) {
+      dragging = node;
+      graphDrag = node;
+      canvas.style.cursor = 'grabbing';
+      showTooltip(node, clientX, clientY);
+    }
+  }
+
+  function onPointerMove(clientX, clientY) {
+    const pos = getPos(clientX, clientY);
     if (dragging) {
       dragging.x = pos.x; dragging.y = pos.y;
       dragging.vx = 0; dragging.vy = 0;
+      showTooltip(dragging, clientX, clientY);
       return;
     }
     const node = hitNode(pos);
     if (node && node !== hovered) {
       hovered = node;
       canvas.style.cursor = 'pointer';
-      const incoming = graphEdges.filter((ed) => ed.to === node.id);
-      const outgoing = graphEdges.filter((ed) => ed.from === node.id);
-      const bal = node.external
-        ? (store.simData ? store.simData.finalBalances[node.id] || 0 : 0)
-        : node.balance;
-      let html = `<div style="font-weight:600;margin-bottom:4px;color:${ACCT_COLORS[node.type] || '#a0a8be'}">${node.label}</div>`;
-      if (!node.external) html += `<div style="color:#a0a8be">Balance: <span style="color:#2dd4a8">$${(bal || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</span></div>`;
-      else if (bal !== 0) html += `<div style="color:#a0a8be">Cumulative: <span style="color:${bal > 0 ? '#2dd4a8' : '#ef6461'}">$${Math.abs(bal || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</span></div>`;
-      if (incoming.length) html += `<div style="margin-top:4px;color:#6a7490">In: ${incoming.map((ed) => '$' + Math.round(ed.amount).toLocaleString() + '/mo').join(', ')}</div>`;
-      if (outgoing.length) html += `<div style="color:#6a7490">Out: ${outgoing.map((ed) => '$' + Math.round(ed.amount).toLocaleString() + '/mo').join(', ')}</div>`;
-      tooltip.innerHTML = html;
-      tooltip.style.display = 'block';
-      tooltip.style.left = (e.clientX + 14) + 'px';
-      tooltip.style.top = (e.clientY + 14) + 'px';
+      showTooltip(node, clientX, clientY);
     } else if (!node) {
       hovered = null;
       canvas.style.cursor = 'grab';
@@ -333,11 +358,33 @@
     }
   }
 
-  function onMouseUp() { dragging = null; graphDrag = null; canvas.style.cursor = 'grab'; }
-  function onMouseLeave() {
-    dragging = null; graphDrag = null; canvas.style.cursor = 'grab';
-    tooltip.style.display = 'none'; hovered = null;
+  function onPointerEnd() {
+    dragging = null;
+    graphDrag = null;
+    canvas.style.cursor = 'grab';
+    // On touch devices, hide the tooltip on release so it doesn't linger.
+    tooltip.style.display = 'none';
+    hovered = null;
   }
+
+  function onMouseDown(e) { onPointerDown(e.clientX, e.clientY); }
+  function onMouseMove(e) { onPointerMove(e.clientX, e.clientY); }
+  function onMouseUp() { onPointerEnd(); }
+  function onMouseLeave() { onPointerEnd(); }
+
+  function onTouchStart(e) {
+    if (e.touches.length !== 1) return;
+    const t = e.touches[0];
+    onPointerDown(t.clientX, t.clientY);
+    if (dragging) e.preventDefault();
+  }
+  function onTouchMove(e) {
+    if (e.touches.length !== 1) return;
+    const t = e.touches[0];
+    if (dragging) e.preventDefault();
+    onPointerMove(t.clientX, t.clientY);
+  }
+  function onTouchEnd() { onPointerEnd(); }
   function onResize() { initGraph(); }
 
   onMount(() => {
@@ -351,33 +398,62 @@
   });
 
   $effect(() => {
-    showMode; showLabels;
+    showMode; showLabels; ctrlOpen;
     if (graphInited) initGraph();
   });
 </script>
 
 <div class="view active" style="flex-direction:column;overflow:hidden;">
   <div class="ctrl">
+    <button onclick={resetLayout}>Reset layout</button>
+    <span style="margin-left:auto;display:flex;gap:8px;align-items:center;">
+      <button type="button" class="ctrl-toggle" onclick={() => ctrlOpen = !ctrlOpen}>
+        <span>Options</span>
+        <span class="ctrl-toggle-caret">{ctrlOpen ? '▴' : '▾'}</span>
+      </button>
+    </span>
+  </div>
+  <div class="ctrl-body" class:open={ctrlOpen}>
     <label for="graphMode">Show</label>
     <select id="graphMode" bind:value={showMode}>
       <option value="all">All flows</option>
       <option value="enabled">Enabled only</option>
     </select>
-    <label style="margin-left:12px;display:flex;align-items:center;gap:4px;cursor:pointer;font-size:11px;color:var(--t1);">
+    <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;color:var(--t1);">
       <input type="checkbox" bind:checked={showLabels} /> Amounts
     </label>
-    <button onclick={resetLayout} style="margin-left:auto;">Reset layout</button>
   </div>
-  <canvas
-    bind:this={canvas}
-    style="display:block;cursor:grab;width:100%;height:calc(100vh - 140px);"
-    onmousedown={onMouseDown}
-    onmousemove={onMouseMove}
-    onmouseup={onMouseUp}
-    onmouseleave={onMouseLeave}
-  ></canvas>
+  <div class="graph-canvas-wrap">
+    <canvas
+      bind:this={canvas}
+      class="graph-canvas"
+      onmousedown={onMouseDown}
+      onmousemove={onMouseMove}
+      onmouseup={onMouseUp}
+      onmouseleave={onMouseLeave}
+      ontouchstart={onTouchStart}
+      ontouchmove={onTouchMove}
+      ontouchend={onTouchEnd}
+      ontouchcancel={onTouchEnd}
+    ></canvas>
+  </div>
   <div
     bind:this={tooltip}
     style="display:none;position:fixed;background:var(--s2);border:1px solid var(--b2);border-radius:6px;padding:10px 14px;font-family:var(--mono);font-size:11px;pointer-events:none;z-index:10;max-width:260px;"
   ></div>
 </div>
+
+<style>
+  .graph-canvas-wrap {
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+  }
+  .graph-canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    cursor: grab;
+    touch-action: none;
+  }
+</style>

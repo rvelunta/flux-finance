@@ -1,23 +1,13 @@
 <script>
   import { store, openAccountModal, openScheduleModal, openFlowModal, deleteAccount } from '../lib/state.svelte.js';
-  import { ACCT_COLORS, TYPE_LABELS } from '../lib/constants.js';
-  import { fmt2, fmtAbs2 } from '../lib/format.js';
-  import Sparkline from './Sparkline.svelte';
+  import { TYPE_LABELS } from '../lib/constants.js';
+  import { fmt2 } from '../lib/format.js';
 
   let { account } = $props();
 
   const isExt = $derived(account.external);
-  const simBal = $derived(store.simData?.finalBalances[account.id] ?? null);
-  const bal = $derived(simBal !== null ? simBal : (isExt ? 0 : account.balance));
   const balColor = $derived(
-    isExt
-      ? (bal > 0 ? 'var(--grn)' : bal < 0 ? 'var(--red)' : 'var(--t3)')
-      : (account.balance >= 0 ? 'var(--grn)' : 'var(--red)')
-  );
-  const projLabel = $derived(
-    simBal !== null
-      ? (isExt ? `Total over period: ${fmtAbs2(bal)}` : `Projected: ${fmt2(bal)}`)
-      : 'Run simulation to project'
+    isExt ? 'var(--t3)' : (account.balance >= 0 ? 'var(--grn)' : 'var(--red)')
   );
   const inFlows = $derived(store.flows.filter((f) => f.to === account.id));
   const outFlows = $derived(store.flows.filter((f) => f.from === account.id));
@@ -46,7 +36,6 @@
   <div class="ac-bal" style="color:{balColor}">
     {isExt ? '$0.00' : '$' + account.balance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
   </div>
-  <div class="ac-proj">{projLabel}</div>
 
   {#if nTotal > 0}
     <details style="margin-top:8px;">
@@ -80,12 +69,6 @@
       </div>
     </details>
   {/if}
-
-  <div class="ac-chart">
-    {#if store.simData}
-      <Sparkline snapshots={store.simData.monthlySnapshots} acctId={account.id} type={account.type} />
-    {/if}
-  </div>
 
   <div class="ac-actions">
     <button onclick={() => openAccountModal(account.id)}>Edit</button>

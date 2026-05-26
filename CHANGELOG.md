@@ -1,5 +1,113 @@
 # Changelog
 
+## 3.8.3 — 2026-05-25
+
+### Changed
+- **Flows desktop list: single table with always-visible column headers.** Same restructure as 3.8.1 applied to Accounts — all flow groups now share one `<table>`, columns (Name / From / → / To / Amount / Period / Category / actions) align across every row, and the `<thead>` is sticky at the top of the scroll region. Group rows are now full-width `<tr colspan="8">`. The `.acct-group-row` CSS class was renamed to `.tbl-group-row` so both tabs share the styling.
+- **Fixed sticky `<thead>` offset.** The global `.fl-table thead th` rule had `top:46px` (stale hold-over from a layout where toolbar and table shared a scroll container) — corrected to `top:0`, removing a 46px dead band where rows could peek above the header. Removes the per-tab override that was patching this.
+
+## 3.8.2 — 2026-05-25
+
+### Changed
+- **Accounts list: all type groups collapsed by default.** Set semantics flipped — the tracking Set now holds *expanded* groups (empty = all collapsed) instead of collapsed groups (empty = all expanded). Click a group header to expand. Lands you on a single-screen overview of every account category instead of the long scrolling list.
+
+## 3.8.1 — 2026-05-25
+
+### Changed
+- **Accounts list: single table with sticky column header.** Previously each type group rendered its own `<table>`, so column widths varied between groups and the header was only shown in flat sort mode. Now all groups live in one `<table>` — columns align across every row by construction — and the `Name / Type / Balance` header is always visible (sticky at the top of the scroll region). Group rows are now full-width `<tr>` with `colspan="4"`; new `.acct-group-row` CSS gives them the same look as the old `.fl-group-header` divs.
+
+## 3.8.0 — 2026-05-25
+
+### Changed
+- **Accounts List view now renders as collapsible groups + table** (same pattern as Flows). When sorted by Type (default), accounts collapse under type-headers showing `▶ TYPE  N accts  $sum` — click to expand the table of rows. Other sort modes render a single flat table with thead. External accounts get their own `▶ EXTERNAL` group at the end. Columns: name (with APR inline), type chip, balance, actions (Edit / Sched / ✕). Reuses `.fl-table` / `.fl-group-header` styles.
+- **Mobile keeps cards.** Same dual-rendering as Flows — desktop sees the table, mobile (≤640px) sees the simplified `AccountCard` grid.
+
+### Removed
+- **"Projected ↓" sort option.** Sorting by a value no longer shown anywhere on the card or table row made the sort invisible. The Projection tab's Net Worth Breakdown view remains the place for ranking by projected balance.
+
+## 3.7.1 — 2026-05-25
+
+### Removed
+- **AccountCard projection text and sparkline.** The "Projected: $X" line and the 60px-tall balance sparkline are gone. Cards now show only what's intrinsic to the account itself (name + APR, type tag, current balance, flow expander, actions) — the projected trajectory lives on the Projection tab. Frees ~75px of vertical space per card so more accounts fit on screen. `Sparkline.svelte` deleted (was only used here).
+
+## 3.7.0 — 2026-05-25
+
+### Changed
+- **Accounts tab gains a View toggle: List · Portfolio · Linked.** Same pattern as 3.6.0 applied the Flows tab. List is the editable AccountCard grid (unchanged); Portfolio shows accounts grouped by type (Cash / Savings / Retirement / HSA / Brokerage / Real Estate / Crypto / Debt) with per-group net balance; Linked shows debt → asset pairs with equity and LTV plus an unlinked-debt fallback. Filters dropdown only appears in List mode.
+
+### Removed
+- **Linked tab and Portfolio tab.** Their content moved under Accounts → View. Top nav goes from 6 tabs to 4: Projection, Accounts, Flows, Graph.
+
+## 3.6.0 — 2026-05-25
+
+### Changed
+- **Flows tab gains a View toggle: List · Income · Expenses.** The three were previously separate top-level tabs but are conceptually three lenses on the same flow data (List = editor, Income = per-group gross→deductions→net waterfall, Expenses = category-bar breakdown). Filters and the +Add Flow button stay on the toolbar across all three views; the filters dropdown only appears in List mode (filters don't apply to the aggregate summaries). View resets to List on tab switch (not persisted).
+
+### Removed
+- **Income tab and Expenses tab.** Their content moved under Flows → View. Top nav goes from 8 tabs to 6: Projection, Accounts, Flows, Graph, Linked, Portfolio.
+
+## 3.5.7 — 2026-05-25
+
+### Changed
+- **Default simulation start is today.** First-run start date now uses `new Date()` instead of the hardcoded `2026-04-13`. Users with a saved config keep their existing start date.
+
+## 3.5.6 — 2026-05-25
+
+### Changed
+- **Balance-over-time chart now shows cashflow as background bars.** Inflow (green) and outflow (red) bars render behind the balance lines on a secondary right y-axis, bucketed by the same snapshot intervals as the lines so the x-axis stays aligned by construction. Bars sum across whichever accounts are selected in the chart's account picker — transfers between selected accounts are excluded (only money entering or leaving the selected set counts). Right y-axis is scaled to ±2.2× max flow so bars stay visually subordinate to the line trace.
+
+### Removed
+- **Cash flow tab.** Its bar chart is now integrated into the Projection chart. The independent day/week/month/quarter/year resolution selector is gone — cashflow buckets follow the Projection chart's daily/weekly/monthly resolution.
+
+## 3.5.5 — 2026-05-25
+
+### Removed
+- **Balances tab.** Its net-worth breakdown was a read-only summary of the same simulation the Projection tab already drives, so it now lives inside Projection (between the balance-over-time chart and the scheduled-flows section). The Accounts tab keeps its role as the editor for account entities; Projection is now the single surface for "what does the simulation say about my future."
+
+## 3.5.4 — 2026-05-23
+
+### Changed
+- **Graph view fits the mobile viewport.** Canvas now flex-fills its container instead of using `calc(100vh - 140px)` (which was wrong once the KpiBanner was added). Node radii and label fonts scale with the smaller canvas dimension so the layered layout doesn't overlap on narrow screens. Device pixel ratio uses the actual `window.devicePixelRatio` (capped at 2) instead of a hardcoded 2 — fixes hit-testing on non-Retina and triple-density displays.
+- **Touch support on Graph.** `touchstart` / `touchmove` / `touchend` handlers mirror the mouse handlers, so nodes can be dragged with a finger. `touch-action: none` on the canvas prevents the browser from interpreting the drag as a page scroll. Tooltip auto-flips to stay on-screen.
+- **Graph toolbar collapses on mobile** like the other views. "Reset layout" stays always-visible; "Show" mode and "Amounts" toggle tuck under an "Options ▾" button.
+
+## 3.5.3 — 2026-05-23
+
+### Changed
+- **Projection tab no longer duplicates the range info.** The KpiBanner already shows `Projection {start} → {end} · ≈ N mo` above every tab, so the matching summary on the Projection tab is removed. The "Range ▾" mobile toggle moves into its own minimal bar that's only rendered on mobile (desktop shows the full range/resolution controls directly).
+
+## 3.5.2 — 2026-05-23
+
+### Fixed
+- **Schedule table no longer horizontally scrolls on mobile.** The inline `<th style="width:220px">` widths beat the previous mobile CSS rules on specificity; the column widths now use `!important`. Added explicit `overflow-x:hidden` to `.proj-scroll`, `.dash-scroll`, `.flows-wrap`, `.fl-cards`, and `.accts-grid` — when only `overflow-y:auto` is set, the spec promotes `overflow-x` from `visible` to `auto`, which was allowing wide children to bubble out.
+
+### Removed
+- **"Run Simulation" button on the Projection tab.** Simulations already auto-run on every range change, account edit, or flow edit, so the button was redundant.
+
+## 3.5.1 — 2026-05-23
+
+### Changed
+- **No horizontal scrolling on mobile.** All tab content now fits the viewport width:
+  - **Flows view renders as cards on mobile** instead of an 8-column table. Each card stacks name + amount, source → destination, category/period/group tags, and full-width action buttons.
+  - **Schedule table uses fixed table-layout on mobile** with proportional column widths (36/24/20/20) and ellipsis truncation. All four columns stay visible.
+- **Collapsible toolbars.** Projection, Flows, and Accounts now tuck their parameter selects and filter chips into a `.ctrl-body` that's hidden by default on mobile. Primary actions (Run Simulation, +Add Flow, +Add Account) and key summary text stay always-visible; a "Range" / "Filters (N)" toggle reveals the controls. Desktop behavior unchanged.
+
+## 3.5.0 — 2026-05-23
+
+### Added
+- **Mobile layout pass.** App is now usable in a phone browser without horizontal page scroll, awkward overflow, or iOS focus-zoom. Specifics:
+  - **Hamburger tab menu on small screens.** The 10-tab bar collapses into a single button that shows the current tab and expands to a dropdown list. Desktop tab bar is unchanged.
+  - **KPI ribbon scrolls horizontally on mobile** with scroll-snap, so all 5 cards remain reachable at readable sizes instead of being crushed into a 5-column grid.
+  - **iOS quality-of-life:** `viewport-fit=cover` + `env(safe-area-inset-*)` padding on the topbar and scroll containers (no clipping under the notch or home indicator), `100dvh` chrome height, inputs bumped to 16px on mobile to suppress focus-zoom, larger touch targets on nav controls.
+  - **Wide tables (Flows, Schedule) scroll inside their container** instead of bubbling overflow to the page.
+  - **Modals expand to 96vw on mobile** with single-column form layouts.
+- **`npm run dev:lan`** script — runs Vite with `--host` so the dev server is reachable from phones on the same network (or over Tailscale).
+
+## 3.4.0 — 2026-05-23
+
+### Changed
+- **Other tools split into per-widget tabs.** The consolidated "Other tools" tab is gone. Each of its widgets is now its own top-level tab: Balances · Cash flow · Income · Expenses · Linked · Portfolio. The KPI strip (Net Worth / Checking Min / Mo. Inflow / Mo. Outflow / Mo. Net) plus the read-only projection-range indicator are hoisted into a persistent ribbon that sits above the tab bar and is visible on every tab.
+
 ## 3.3.0 — 2026-05-12
 
 ### Added

@@ -7,20 +7,22 @@
   import Accounts from './views/Accounts.svelte';
   import Flows from './views/Flows.svelte';
   import Graph from './views/Graph.svelte';
-  import OtherTools from './views/OtherTools.svelte';
+  import KpiBanner from './components/KpiBanner.svelte';
   import AccountModal from './components/AccountModal.svelte';
   import FlowModal from './components/FlowModal.svelte';
   import ScheduleModal from './components/ScheduleModal.svelte';
 
   let fileInput;
+  let menuOpen = $state(false);
 
   const tabs = [
     { id: 'projection', label: 'Projection' },
     { id: 'accounts', label: 'Accounts' },
     { id: 'flows', label: 'Flows' },
     { id: 'graph', label: 'Graph' },
-    { id: 'other-tools', label: 'Other tools' },
   ];
+
+  const currentTab = $derived(tabs.find((t) => t.id === store.activeView) ?? tabs[0]);
 
   function onImport(e) {
     const file = e.target.files[0];
@@ -34,11 +36,22 @@
       closeAccountModal();
       closeFlowModal();
       closeScheduleModal();
+      menuOpen = false;
     }
+  }
+
+  function onDocClick(e) {
+    if (!e.target.closest('#tabMenuWrap')) menuOpen = false;
+  }
+
+  function selectTab(id) {
+    store.activeView = id;
+    menuOpen = false;
   }
 </script>
 
 <svelte:window onkeydown={onKey} />
+<svelte:document onclick={onDocClick} />
 
 <div class="chrome">
   <div class="topbar">
@@ -49,6 +62,8 @@
       <input type="file" bind:this={fileInput} accept=".json" style="display:none" onchange={onImport} />
     </div>
   </div>
+
+  <KpiBanner />
 
   <div class="tabs">
     {#each tabs as tab}
@@ -63,6 +78,30 @@
     {/each}
   </div>
 
+  <div class="tab-menu" id="tabMenuWrap">
+    <button
+      type="button"
+      class="tab-menu-trigger"
+      onclick={(e) => { e.stopPropagation(); menuOpen = !menuOpen; }}
+    >
+      <span>{currentTab.label}</span>
+      <span class="tm-caret">{menuOpen ? '▴' : '▾'}</span>
+    </button>
+    {#if menuOpen}
+      <div class="tab-menu-list">
+        {#each tabs as tab}
+          <button
+            type="button"
+            class:active={store.activeView === tab.id}
+            onclick={() => selectTab(tab.id)}
+          >
+            {tab.label}
+          </button>
+        {/each}
+      </div>
+    {/if}
+  </div>
+
   {#if store.activeView === 'projection'}
     <Projection />
   {:else if store.activeView === 'accounts'}
@@ -71,8 +110,6 @@
     <Flows />
   {:else if store.activeView === 'graph'}
     <Graph />
-  {:else if store.activeView === 'other-tools'}
-    <OtherTools />
   {/if}
 </div>
 

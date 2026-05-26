@@ -1,11 +1,12 @@
 {
   "name": "flux",
-  "version": "3.3.0",
+  "version": "3.8.3",
   "description": "FLUX — personal finance flow-account simulation engine",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:lan": "vite --host",
     "build": "vite build",
     "preview": "vite preview"
   },

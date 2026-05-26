@@ -9,8 +9,23 @@
   let chartMode = $state('lines');
   let pickerOpen = $state(false);
   let scheduleTables = $state({});
+  let ctrlOpen = $state(false);
 
   const internalAccts = $derived(store.accounts.filter((a) => !a.external));
+  const externalAccts = $derived(store.accounts.filter((a) => a.external));
+  const finalNW = $derived(
+    store.simData ? internalAccts.reduce((s, a) => s + (store.simData.finalBalances[a.id] || 0), 0) : 0
+  );
+  const sortedNW = $derived.by(() => {
+    if (!store.simData) return [];
+    return [...internalAccts].sort((a, b) => (store.simData.finalBalances[b.id] || 0) - (store.simData.finalBalances[a.id] || 0));
+  });
+  const externalNW = $derived.by(() => {
+    if (!store.simData) return [];
+    return externalAccts
+      .filter((a) => (store.simData.finalBalances[a.id] || 0) !== 0)
+      .sort((a, b) => Math.abs(store.simData.finalBalances[b.id] || 0) - Math.abs(store.simData.finalBalances[a.id] || 0));
+  });
 
   $effect(() => {
     if (store.chartSelectedAccts.size === 0 && internalAccts.length > 0) {
@@ -122,7 +137,13 @@
 <svelte:document onclick={onDocClick} />
 
 <div class="view active" style="flex-direction:column;overflow:hidden;">
-  <div class="ctrl">
+  <div class="proj-mobile-ctrl">
+    <button type="button" class="ctrl-toggle" onclick={() => ctrlOpen = !ctrlOpen}>
+      <span>Range</span>
+      <span class="ctrl-toggle-caret">{ctrlOpen ? '▴' : '▾'}</span>
+    </button>
+  </div>
+  <div class="ctrl-body" class:open={ctrlOpen}>
     <label for="projStart">Start</label>
     <input id="projStart" type="date" bind:value={store.config.startDate} />
     <label for="projEnd">End</label>
@@ -138,10 +159,6 @@
       <option value="weekly">Weekly</option>
       <option value="monthly">Monthly</option>
     </select>
-    <button class="pri" onclick={simulate}>Run Simulation</button>
-    <span style="margin-left:auto;font-family:var(--mono);font-size:10px;color:var(--t3);">
-      ≈ {projMonths} mo
-    </span>
   </div>
 
   <div class="proj-scroll">
@@ -188,10 +205,45 @@
             mode={chartMode}
             projMonths={projMonths}
             resolution={store.config.resolution}
+            transfers={store.simData.allTransfers}
           />
         {/if}
       </div>
     </div>
+
+    {#if store.simData}
+      <div class="proj-section">
+        <div class="proj-section-head">
+          <div class="dash-h" style="margin:0;">Net worth breakdown (end of period)</div>
+        </div>
+        {#each sortedNW as a (a.id)}
+          {@const bal = store.simData.finalBalances[a.id] || 0}
+          <div class="nw-row">
+            <div class="nw-dot" style="background:{ACCT_COLORS[a.type]}"></div>
+            <div class="nw-name">{a.name}</div>
+            <div class="nw-val" style="color:{bal >= 0 ? 'var(--grn)' : 'var(--red)'}">{fmt2(bal)}</div>
+            <div class="nw-pct">{finalNW > 0 ? (bal / finalNW * 100).toFixed(1) + '%' : ''}</div>
+          </div>
+        {/each}
+        <div class="nw-row" style="border-top:2px solid var(--b2);margin-top:4px;padding-top:8px;font-weight:700;">
+          <div class="nw-dot" style="background:transparent;"></div>
+          <div class="nw-name" style="color:var(--t1);">Net Worth</div>
+          <div class="nw-val" style="color:var(--grn)">{fmt2(finalNW)}</div>
+          <div class="nw-pct">100%</div>
+        </div>
+        {#if externalNW.length}
+          <div style="font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:0.8px;color:var(--t4);margin:16px 0 6px;">External accounts ({projMonths}mo totals)</div>
+          {#each externalNW as a (a.id)}
+            {@const bal = store.simData.finalBalances[a.id] || 0}
+            <div class="nw-row">
+              <div class="nw-dot" style="background:{ACCT_COLORS[a.type] || '#6a7490'};opacity:0.5;"></div>
+              <div class="nw-name" style="color:var(--t3);">{a.name}</div>
+              <div class="nw-val" style="color:{bal > 0 ? 'var(--grn)' : 'var(--red)'};">{fmt2(Math.abs(bal))}</div>
+            </div>
+          {/each}
+        {/if}
+      </div>
+    {/if}
 
     <div class="proj-section">
       <div class="proj-section-head">
@@ -237,6 +289,19 @@
   .proj-scroll {
     flex: 1;
     overflow-y: auto;
+    overflow-x: hidden;
+  }
+  .proj-mobile-ctrl {
+    display: none;
+  }
+  @media (max-width: 640px) {
+    .proj-mobile-ctrl {
+      display: flex;
+      justify-content: flex-end;
+      padding: 10px 14px;
+      background: var(--s1);
+      border-bottom: 1px solid var(--b1);
+    }
   }
   .proj-section {
     padding: 18px 28px;
