@@ -14,8 +14,22 @@ function loadInitial() {
       if (raw) localStorage.removeItem(LEGACY_LS_KEY);
     }
     if (!raw) return null;
-    return JSON.parse(raw);
+    return migrateShape(JSON.parse(raw));
   } catch { return null; }
+}
+
+function migrateShape(d) {
+  if (d?.scenarios && d?.activeScenarioId) return d;
+  if (d?.accounts) {
+    return {
+      ...d,
+      scenarios: [{ id: 'baseline', name: 'Baseline', accounts: d.accounts, flows: d.flows ?? [] }],
+      activeScenarioId: 'baseline',
+      accounts: undefined,
+      flows: undefined,
+    };
+  }
+  return d;
 }
 
 function defaultEndFrom(startStr, months) {
@@ -29,9 +43,16 @@ const initStart = saved?.config?.startDate ?? fmtD(new Date());
 const initEnd = saved?.config?.endDate
   ?? defaultEndFrom(initStart, saved?.config?.months ?? 6);
 
+const initialScenarios = saved?.scenarios ?? [
+  { id: 'baseline', name: 'Baseline', accounts: structuredClone(SEED_ACCOUNTS), flows: structuredClone(SEED_FLOWS) },
+];
+const initialActiveId = saved?.activeScenarioId ?? initialScenarios[0]?.id ?? 'baseline';
+
 export const store = $state({
-  accounts: saved?.accounts ?? structuredClone(SEED_ACCOUNTS),
-  flows: saved?.flows ?? structuredClone(SEED_FLOWS),
+  scenarios: initialScenarios,
+  activeScenarioId: initialActiveId,
+  compareIds: new Set(saved?.compareIds ?? []),
+  compareSims: {},
   customFlowCats: saved?.customFlowCats ?? [],
   flowCatDisplay: { ...SEED_CAT_DISPLAY, ...(saved?.flowCatDisplay ?? {}) },
   config: {
@@ -41,10 +62,28 @@ export const store = $state({
   },
   simData: null,
   activeView: 'projection',
-  chartSelectedAccts: new Set(['a-chk']),
+  chartSelectedAcctId: 'a-chk',
   acctTypeFilter: new Set(),
   flowCatFilter: new Set(),
   expandedGroups: new Set(),
+
+  get activeScenario() {
+    return this.scenarios.find((s) => s.id === this.activeScenarioId) ?? this.scenarios[0];
+  },
+  get accounts() {
+    return this.activeScenario?.accounts ?? [];
+  },
+  set accounts(val) {
+    const s = this.activeScenario;
+    if (s) s.accounts = val;
+  },
+  get flows() {
+    return this.activeScenario?.flows ?? [];
+  },
+  set flows(val) {
+    const s = this.activeScenario;
+    if (s) s.flows = val;
+  },
 });
 
 export const ui = $state({
@@ -65,13 +104,29 @@ export function nid(prefix) { return prefix + '-' + (nextNum++); }
 
 export function simulate() {
   store.simData = runSimulation(store.accounts, store.flows, store.config);
+  const next = {};
+  for (const id of store.compareIds) {
+    if (id === store.activeScenarioId) continue;
+    const s = store.scenarios.find((x) => x.id === id);
+    if (s) next[id] = runSimulation(s.accounts, s.flows, store.config);
+  }
+  store.compareSims = next;
+}
+
+export function toggleCompare(id) {
+  const next = new Set(store.compareIds);
+  if (next.has(id)) next.delete(id); else next.add(id);
+  store.compareIds = next;
+  simulate();
+  saveLS();
 }
 
 export function saveLS() {
   try {
     localStorage.setItem(LS_KEY, JSON.stringify({
-      accounts: store.accounts,
-      flows: store.flows,
+      scenarios: store.scenarios,
+      activeScenarioId: store.activeScenarioId,
+      compareIds: [...store.compareIds],
       customFlowCats: store.customFlowCats,
       flowCatDisplay: store.flowCatDisplay,
       config: store.config,
@@ -83,8 +138,9 @@ export function exportJSON() {
   const data = {
     version: 'flux-v3',
     exported: new Date().toISOString(),
-    accounts: store.accounts,
-    flows: store.flows,
+    scenarios: store.scenarios,
+    activeScenarioId: store.activeScenarioId,
+    compareIds: [...store.compareIds],
     customFlowCats: store.customFlowCats,
     flowCatDisplay: store.flowCatDisplay,
     config: store.config,
@@ -100,9 +156,10 @@ export function importJSON(file) {
     const r = new FileReader();
     r.onload = (ev) => {
       try {
-        const d = JSON.parse(ev.target.result);
-        if (d.accounts) store.accounts = d.accounts;
-        if (d.flows) store.flows = d.flows;
+        const d = migrateShape(JSON.parse(ev.target.result));
+        if (d.scenarios) store.scenarios = d.scenarios;
+        if (d.activeScenarioId) store.activeScenarioId = d.activeScenarioId;
+        if (Array.isArray(d.compareIds)) store.compareIds = new Set(d.compareIds);
         if (d.customFlowCats) store.customFlowCats = d.customFlowCats;
         if (d.flowCatDisplay) Object.assign(store.flowCatDisplay, d.flowCatDisplay);
         if (d.config) store.config = { ...store.config, ...d.config };
@@ -113,6 +170,56 @@ export function importJSON(file) {
     };
     r.readAsText(file);
   });
+}
+
+export function selectScenario(id) {
+  if (store.scenarios.some((s) => s.id === id)) {
+    store.activeScenarioId = id;
+    simulate();
+    saveLS();
+  }
+}
+
+export function newScenario(name) {
+  const trimmed = (name || '').trim();
+  if (!trimmed) return null;
+  const id = 'sc-' + Math.random().toString(36).slice(2, 8);
+  const src = store.activeScenario;
+  store.scenarios.push({
+    id,
+    name: trimmed,
+    accounts: structuredClone($state.snapshot(src.accounts)),
+    flows: structuredClone($state.snapshot(src.flows)),
+  });
+  store.activeScenarioId = id;
+  simulate();
+  saveLS();
+  return id;
+}
+
+export function renameScenario(id, name) {
+  const trimmed = (name || '').trim();
+  if (!trimmed) return;
+  const s = store.scenarios.find((s) => s.id === id);
+  if (s) {
+    s.name = trimmed;
+    saveLS();
+  }
+}
+
+export function deleteScenario(id) {
+  if (id === 'baseline') return;
+  store.scenarios = store.scenarios.filter((s) => s.id !== id);
+  if (store.compareIds.has(id)) {
+    const next = new Set(store.compareIds);
+    next.delete(id);
+    store.compareIds = next;
+  }
+  if (store.activeScenarioId === id) {
+    store.activeScenarioId = store.scenarios[0]?.id ?? 'baseline';
+  }
+  simulate();
+  saveLS();
 }
 
 export function addAccount(acct) {

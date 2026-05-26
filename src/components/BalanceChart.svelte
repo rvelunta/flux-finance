@@ -1,15 +1,22 @@
 <script>
   import { onDestroy } from 'svelte';
-  import { ACCT_COLORS } from '../lib/constants.js';
   import { fmtShort } from '../lib/format.js';
 
-  let { snapshots, selectedAccounts, mode, projMonths, resolution = 'monthly', transfers = [] } = $props();
+  let {
+    snapshots,
+    primaryLine,
+    selectedAcctIds = new Set(),
+    projMonths,
+    resolution = 'monthly',
+    transfers = [],
+    compareLines = [],
+  } = $props();
 
   let canvas;
   let chart = null;
 
   $effect(() => {
-    if (!canvas || !snapshots?.length) return;
+    if (!canvas || !snapshots?.length || !primaryLine) return;
     if (chart) chart.destroy();
 
     const labels = snapshots.map((s) => {
@@ -26,16 +33,15 @@
         : s.date.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
     });
 
-    const selectedIds = new Set(selectedAccounts.map((a) => a.id));
     const inflows = new Array(snapshots.length).fill(0);
     const outflows = new Array(snapshots.length).fill(0);
-    if (selectedIds.size > 0 && transfers.length > 0) {
+    if (selectedAcctIds.size > 0 && transfers.length > 0) {
       let snapIdx = 0;
       for (const t of transfers) {
         while (snapIdx < snapshots.length - 1 && snapshots[snapIdx].date < t.date) snapIdx++;
         if (snapshots[snapIdx].date < t.date) continue;
-        const fromSel = selectedIds.has(t.from);
-        const toSel = selectedIds.has(t.to);
+        const fromSel = selectedAcctIds.has(t.from);
+        const toSel = selectedAcctIds.has(t.to);
         if (toSel && !fromSel) inflows[snapIdx] += t.amount;
         else if (fromSel && !toSel) outflows[snapIdx] += t.amount;
       }
@@ -43,39 +49,36 @@
     const maxFlow = Math.max(...inflows, ...outflows);
     const hasCashflow = maxFlow > 0;
 
-    let datasets;
-    if (mode === 'stacked') {
-      datasets = selectedAccounts.map((a) => ({
-        label: a.name,
-        data: snapshots.map((s) => s.balances[a.id] || 0),
-        backgroundColor: ACCT_COLORS[a.type] + '20',
-        borderColor: ACCT_COLORS[a.type],
-        fill: true, tension: 0.3, pointRadius: 0, borderWidth: 1.5,
-        yAxisID: 'y', order: 0,
-      }));
-    } else {
-      datasets = selectedAccounts.map((a) => ({
-        label: a.name,
-        data: snapshots.map((s) => s.balances[a.id] || 0),
-        borderColor: ACCT_COLORS[a.type],
+    const datasets = [
+      {
+        label: primaryLine.name,
+        data: primaryLine.data,
+        borderColor: primaryLine.color,
         backgroundColor: 'transparent',
-        fill: false, tension: 0.3, pointRadius: 0, borderWidth: 2,
-        yAxisID: 'y', order: 0,
-      }));
-    }
+        fill: false,
+        tension: 0.3,
+        pointRadius: 0,
+        borderWidth: 2,
+        yAxisID: 'y',
+        order: 0,
+      },
+    ];
 
-    if (selectedAccounts.length > 1) {
+    compareLines.forEach((cl) => {
       datasets.push({
-        label: 'Total',
-        data: snapshots.map((s) =>
-          selectedAccounts.reduce((sum, a) => sum + (s.balances[a.id] || 0), 0)
-        ),
-        borderColor: '#e8ecf4', backgroundColor: 'transparent',
-        fill: false, tension: 0.3, pointRadius: 0, borderWidth: 1.5,
-        borderDash: [6, 3],
-        yAxisID: 'y', order: 0,
+        label: cl.name,
+        data: cl.data,
+        borderColor: cl.color,
+        backgroundColor: 'transparent',
+        fill: false,
+        tension: 0.3,
+        pointRadius: 0,
+        borderWidth: 1.5,
+        borderDash: cl.dash,
+        yAxisID: 'y',
+        order: 0,
       });
-    }
+    });
 
     if (hasCashflow) {
       datasets.push({
@@ -109,7 +112,6 @@
       },
       y: {
         position: 'left',
-        stacked: mode === 'stacked',
         grid: { color: 'rgba(42,48,64,0.4)', drawBorder: false },
         ticks: {
           color: '#4a5268',

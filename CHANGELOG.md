@@ -1,5 +1,45 @@
 # Changelog
 
+## 3.10.3 — 2026-05-25
+
+### Changed
+- **Balance-over-time chart is single-account only.** Removed multi-account selection — the picker now picks exactly one trace at a time. `Net Worth` (sum of all internal accounts) joins the list as its own selectable row. The "Individual lines / Stacked area (NW)" mode toggle is gone (no longer applicable). Compare scenarios still overlay, now as one dashed line per scenario (matching the active selection — either the same account in each compared scenario, or each scenario's NW).
+- **Scheduled flows section** now shows only the selected account's schedule, with a hint to pick a specific account when NW is selected.
+- **State**: `store.chartSelectedAccts: Set` replaced with `store.chartSelectedAcctId: string` (sentinel `__nw__` for Net Worth).
+
+### Removed
+- `selectAll` / `selectNone` / `selectPreset` (Liquid/NW preset buttons) and the `chartMode` state on Projection.
+
+## 3.10.2 — 2026-05-25
+
+### Changed
+- **Account-to-account comparison for forks.** Compared scenarios no longer overlay a single NW line. Each selected account now gets one extra line per compared scenario: same color as the account (so Chase Checking stays blue across all scenarios), with each scenario getting its own dash pattern so overlapping lines stay distinguishable. If multiple accounts are selected, a `Total · <scenario>` line is also added per scenario. The picker row now previews the actual dash pattern via inline SVG so you can match it to the chart legend.
+
+## 3.10.1 — 2026-05-25
+
+### Changed
+- **Scenario comparison toggle moved into the chart's account picker.** The ●/○ indicator on each topbar chip is removed; instead, the existing "Individual lines / X accounts ▾" dropdown on the Projection chart now has a `Compare scenarios` section below the accounts list with one checkbox per non-active scenario (dashed-line color preview matches the overlay color). Folds two related selection concerns — which accounts, which scenarios — into one place. Topbar chips now do switch / rename / delete only.
+
+## 3.10.0 — 2026-05-25
+
+### Added
+- **Scenarios (phase 2): compare scenarios visually.** Each non-active chip in the topbar now has a small ●/○ toggle — click it to overlay that scenario on the Projection chart and Net Worth Breakdown.
+  - **Projection chart**: each compared scenario appears as one dashed line tracking total net worth across the projection range (distinct color per scenario, labeled in the legend).
+  - **Net Worth Breakdown**: a comparison block appears at the top of the panel showing each scenario's final net worth and the delta vs the active scenario. Per-account breakdown remains single-scenario (active) below.
+- `simulate()` now runs sims for every compared scenario in addition to the active one, storing them in `store.compareSims`. Compare set is persisted in localStorage/JSON export.
+- `deleteScenario()` auto-removes the deleted ID from `compareIds` so stale entries don't linger.
+
+## 3.9.0 — 2026-05-25
+
+### Added
+- **Scenarios (phase 1): branch your model to test hypothetical changes.** Your `accounts` and `flows` are now wrapped in a named "Baseline" scenario; you can fork it to create independent scenarios that don't disturb the core model. Topbar scenario bar lets you switch active scenarios (click), rename (right-click), delete (× on the chip), or fork the current active scenario (`+ Fork`). The simulation engine reads from the active scenario; switching scenarios re-runs the sim.
+- **Schema migration.** localStorage and JSON imports of the old `{accounts, flows}` shape auto-upgrade to `{scenarios: [{id: 'baseline', name: 'Baseline', accounts, flows}], activeScenarioId: 'baseline'}` on load — no manual export/reimport needed.
+
+### Notes
+- Date range (start / end / resolution) is global across scenarios so comparisons stay apples-to-apples.
+- Editing Baseline doesn't auto-propagate to forks (intentional: each scenario is a snapshot). A "Rebase from Baseline" action may follow if drift becomes painful.
+- Phase 2 (chart overlays + side-by-side Net Worth Breakdown for compared scenarios) lands next.
+
 ## 3.8.3 — 2026-05-25
 
 ### Changed

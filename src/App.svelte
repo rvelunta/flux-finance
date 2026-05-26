@@ -2,6 +2,7 @@
   import {
     store, ui, exportJSON, importJSON,
     closeAccountModal, closeFlowModal, closeScheduleModal,
+    selectScenario, newScenario, renameScenario, deleteScenario,
   } from './lib/state.svelte.js';
   import Projection from './views/Projection.svelte';
   import Accounts from './views/Accounts.svelte';
@@ -48,6 +49,22 @@
     store.activeView = id;
     menuOpen = false;
   }
+
+  function onNewScenario() {
+    const name = prompt('New scenario name:', `Scenario ${store.scenarios.length + 1}`);
+    if (name?.trim()) newScenario(name);
+  }
+
+  function onRenameScenario(e, s) {
+    e.preventDefault();
+    const name = prompt('Rename scenario:', s.name);
+    if (name && name.trim() && name.trim() !== s.name) renameScenario(s.id, name);
+  }
+
+  function onDeleteScenario(e, s) {
+    e.stopPropagation();
+    if (confirm(`Delete scenario "${s.name}"?`)) deleteScenario(s.id);
+  }
 </script>
 
 <svelte:window onkeydown={onKey} />
@@ -55,7 +72,32 @@
 
 <div class="chrome">
   <div class="topbar">
-    <h1>FLUX <em>v3 // flow engine</em></h1>
+    <h1>FLUX <em>v3</em></h1>
+    <div class="scenario-bar">
+      {#each store.scenarios as s (s.id)}
+        <button
+          type="button"
+          class="sc-chip"
+          class:active={store.activeScenarioId === s.id}
+          onclick={() => selectScenario(s.id)}
+          oncontextmenu={(e) => onRenameScenario(e, s)}
+          title="Click to switch · Right-click to rename"
+        >
+          {s.name}
+          {#if s.id !== 'baseline'}
+            <span
+              class="sc-chip-x"
+              role="button"
+              tabindex="-1"
+              onclick={(e) => onDeleteScenario(e, s)}
+              onkeydown={(e) => e.key === 'Enter' && onDeleteScenario(e, s)}
+              title="Delete"
+            >×</span>
+          {/if}
+        </button>
+      {/each}
+      <button type="button" class="sc-chip sc-chip-new" onclick={onNewScenario} title="Fork active scenario">+ Fork</button>
+    </div>
     <div class="topbar-r">
       <button onclick={exportJSON}>Export</button>
       <button onclick={() => fileInput.click()}>Import</button>

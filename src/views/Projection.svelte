@@ -1,21 +1,43 @@
 <script>
-  import { store, simulate } from '../lib/state.svelte.js';
+  import { store, simulate, toggleCompare } from '../lib/state.svelte.js';
   import { ACCT_COLORS, TYPE_LABELS } from '../lib/constants.js';
   import { fmt2 } from '../lib/format.js';
   import { fmtD, parseDate, daysBetween } from '../lib/dates.js';
   import BalanceChart from '../components/BalanceChart.svelte';
   import ScheduleTable from '../components/ScheduleTable.svelte';
 
-  let chartMode = $state('lines');
   let pickerOpen = $state(false);
   let scheduleTables = $state({});
   let ctrlOpen = $state(false);
+
+  const NW_ID = '__nw__';
 
   const internalAccts = $derived(store.accounts.filter((a) => !a.external));
   const externalAccts = $derived(store.accounts.filter((a) => a.external));
   const finalNW = $derived(
     store.simData ? internalAccts.reduce((s, a) => s + (store.simData.finalBalances[a.id] || 0), 0) : 0
   );
+
+  const otherScenarios = $derived(
+    store.scenarios.filter((s) => s.id !== store.activeScenarioId)
+  );
+
+  const COMPARE_COLORS = ['#f5a847', '#ec4899', '#a78bfa', '#22d3ee', '#84cc16', '#fb923c'];
+  const COMPARE_DASH = [[5, 3], [2, 2], [8, 3, 2, 3], [12, 4], [3, 5], [10, 3, 3, 3]];
+
+  const compareScenarios = $derived.by(() => {
+    return [...store.compareIds]
+      .filter((id) => id !== store.activeScenarioId)
+      .map((id) => {
+        const sc = store.scenarios.find((s) => s.id === id);
+        const sim = store.compareSims[id];
+        if (!sc || !sim) return null;
+        const internalIds = new Set(sc.accounts.filter((a) => !a.external).map((a) => a.id));
+        const finalNW = [...internalIds].reduce((s, aid) => s + (sim.finalBalances[aid] || 0), 0);
+        return { id, name: sc.name, sim, internalIds, finalNW };
+      })
+      .filter(Boolean);
+  });
   const sortedNW = $derived.by(() => {
     if (!store.simData) return [];
     return [...internalAccts].sort((a, b) => (store.simData.finalBalances[b.id] || 0) - (store.simData.finalBalances[a.id] || 0));
@@ -28,9 +50,10 @@
   });
 
   $effect(() => {
-    if (store.chartSelectedAccts.size === 0 && internalAccts.length > 0) {
+    if (store.chartSelectedAcctId === NW_ID) return;
+    if (!internalAccts.find((a) => a.id === store.chartSelectedAcctId) && internalAccts.length > 0) {
       const chk = internalAccts.find((a) => a.type === 'checking');
-      store.chartSelectedAccts = new Set([chk?.id ?? internalAccts[0].id]);
+      store.chartSelectedAcctId = chk?.id ?? internalAccts[0].id;
     }
   });
 
@@ -42,8 +65,11 @@
     simulate();
   });
 
-  const selectedAccounts = $derived(
-    internalAccts.filter((a) => store.chartSelectedAccts.has(a.id))
+  const isNW = $derived(store.chartSelectedAcctId === NW_ID);
+  const selectedAccount = $derived(internalAccts.find((a) => a.id === store.chartSelectedAcctId));
+  const selectedLabel = $derived(isNW ? 'Net Worth' : (selectedAccount?.name ?? 'Net Worth'));
+  const selectedAcctIds = $derived(
+    isNW ? new Set(internalAccts.map((a) => a.id)) : new Set(selectedAccount ? [selectedAccount.id] : [])
   );
   const simStartStr = $derived(store.simData ? fmtD(store.simData.startDate) : '');
   const simEndStr = $derived(store.simData ? fmtD(store.simData.endDate) : '');
@@ -91,10 +117,8 @@
     store.config.endDate = fmtD(endFromSpan(s, p));
   }
 
-  const chartSnapshots = $derived.by(() => {
-    if (!store.simData) return [];
-    const sim = store.simData;
-    const res = store.config.resolution;
+  function snapshotsFor(sim, res) {
+    if (!sim) return [];
     if (res === 'monthly' || !sim.dailyBalances?.length) return sim.monthlySnapshots;
     const daily = sim.dailyBalances;
     if (res === 'daily') {
@@ -112,20 +136,59 @@
       return out;
     }
     return sim.monthlySnapshots;
+  }
+
+  const chartSnapshots = $derived(snapshotsFor(store.simData, store.config.resolution));
+
+  const primaryLine = $derived.by(() => {
+    if (!chartSnapshots.length) return null;
+    if (isNW) {
+      const ids = internalAccts.map((a) => a.id);
+      return {
+        name: 'Net Worth',
+        data: chartSnapshots.map((s) => ids.reduce((sum, id) => sum + (s.balances[id] || 0), 0)),
+        color: '#e8ecf4',
+      };
+    }
+    if (!selectedAccount) return null;
+    return {
+      name: selectedAccount.name,
+      data: chartSnapshots.map((s) => s.balances[selectedAccount.id] || 0),
+      color: ACCT_COLORS[selectedAccount.type] || '#6a7490',
+    };
   });
 
-  function toggleChartAcct(id) {
-    const next = new Set(store.chartSelectedAccts);
-    if (next.has(id)) next.delete(id); else next.add(id);
-    store.chartSelectedAccts = next;
-  }
-  function selectAll() { store.chartSelectedAccts = new Set(internalAccts.map((a) => a.id)); }
-  function selectNone() { store.chartSelectedAccts = new Set(); }
-  function selectPreset(p) {
-    const next = new Set();
-    if (p === 'liquid') internalAccts.filter((a) => a.type === 'checking' || a.type === 'savings').forEach((a) => next.add(a.id));
-    else if (p === 'nw') internalAccts.forEach((a) => next.add(a.id));
-    store.chartSelectedAccts = next;
+  const compareLines = $derived.by(() => {
+    const result = [];
+    compareScenarios.forEach((cs, i) => {
+      const snaps = snapshotsFor(cs.sim, store.config.resolution);
+      const dash = COMPARE_DASH[i % COMPARE_DASH.length];
+      if (isNW) {
+        const ids = [...cs.internalIds];
+        result.push({
+          id: cs.id + ':nw',
+          name: `Net Worth · ${cs.name}`,
+          data: snaps.map((s) => ids.reduce((sum, aid) => sum + (s.balances[aid] || 0), 0)),
+          color: '#e8ecf4',
+          dash,
+        });
+      } else if (selectedAccount && cs.internalIds.has(selectedAccount.id)) {
+        const aid = selectedAccount.id;
+        result.push({
+          id: cs.id + ':' + aid,
+          name: `${selectedAccount.name} · ${cs.name}`,
+          data: snaps.map((s) => s.balances[aid] || 0),
+          color: ACCT_COLORS[selectedAccount.type] || '#6a7490',
+          dash,
+        });
+      }
+    });
+    return result;
+  });
+
+  function selectAcct(id) {
+    store.chartSelectedAcctId = id;
+    pickerOpen = false;
   }
   function onDocClick(e) {
     if (!e.target.closest('#projPickerWrap')) pickerOpen = false;
@@ -166,31 +229,53 @@
       <div class="proj-section-head">
         <div class="dash-h" style="margin:0;">Balance over time</div>
         <div style="display:flex;gap:8px;align-items:center;">
-          <select bind:value={chartMode} style="font-size:10px;padding:3px 6px;width:auto;">
-            <option value="lines">Individual lines</option>
-            <option value="stacked">Stacked area (NW)</option>
-          </select>
           <div style="position:relative;" id="projPickerWrap">
-            <button onclick={(e) => { e.stopPropagation(); pickerOpen = !pickerOpen; }} style="font-size:10px;padding:4px 10px;min-width:130px;text-align:left;">
-              <span>{store.chartSelectedAccts.size === 0 ? 'No accounts' : store.chartSelectedAccts.size === 1 ? '1 account' : store.chartSelectedAccts.size + ' accounts'}</span>
+            <button onclick={(e) => { e.stopPropagation(); pickerOpen = !pickerOpen; }} style="font-size:10px;padding:4px 10px;min-width:150px;text-align:left;">
+              <span>{selectedLabel}</span>
               <span style="float:right;color:var(--t4);">▾</span>
             </button>
             {#if pickerOpen}
-              <div style="position:absolute;right:0;top:100%;margin-top:4px;background:var(--s1);border:1px solid var(--b2);border-radius:6px;padding:6px 0;z-index:20;min-width:220px;max-height:320px;overflow-y:auto;">
-                <div style="padding:4px 12px 8px;display:flex;gap:6px;border-bottom:1px solid var(--b1);margin-bottom:4px;">
-                  <button onclick={selectAll} style="font-size:9px;padding:2px 6px;">All</button>
-                  <button onclick={selectNone} style="font-size:9px;padding:2px 6px;">None</button>
-                  <button onclick={() => selectPreset('liquid')} style="font-size:9px;padding:2px 6px;">Liquid</button>
-                  <button onclick={() => selectPreset('nw')} style="font-size:9px;padding:2px 6px;">Net Worth</button>
+              <div style="position:absolute;right:0;top:100%;margin-top:4px;background:var(--s1);border:1px solid var(--b2);border-radius:6px;padding:6px 0;z-index:20;min-width:240px;max-height:360px;overflow-y:auto;">
+                {#if otherScenarios.length}
+                  <div style="padding:2px 12px 4px;font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:0.6px;color:var(--t4);">Compare scenarios</div>
+                  {#each otherScenarios as s, i (s.id)}
+                    {@const on = store.compareIds.has(s.id)}
+                    {@const dash = COMPARE_DASH[i % COMPARE_DASH.length]}
+                    <label style="display:flex;align-items:center;gap:8px;padding:5px 12px;cursor:pointer;font-family:var(--mono);font-size:11px;color:{on ? 'var(--t1)' : 'var(--t3)'};">
+                      <input type="checkbox" checked={on} onchange={() => toggleCompare(s.id)} />
+                      <svg width="18" height="6" style="flex-shrink:0;">
+                        <line x1="0" y1="3" x2="18" y2="3" stroke="var(--t2)" stroke-width="2" stroke-dasharray={dash.join(',')} />
+                      </svg>
+                      {s.name}
+                      <span style="margin-left:auto;font-size:9px;color:var(--t4);">overlay</span>
+                    </label>
+                  {/each}
+                  <div style="border-top:1px solid var(--b1);margin:4px 0;padding:2px 12px 0;font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:0.6px;color:var(--t4);">Account</div>
+                {/if}
+                <div
+                  role="button"
+                  tabindex="0"
+                  onclick={() => selectAcct(NW_ID)}
+                  onkeydown={(e) => e.key === 'Enter' && selectAcct(NW_ID)}
+                  style="display:flex;align-items:center;gap:8px;padding:5px 12px;cursor:pointer;font-family:var(--mono);font-size:11px;color:{isNW ? 'var(--t1)' : 'var(--t3)'};background:{isNW ? 'var(--s2)' : 'transparent'};font-weight:{isNW ? '600' : '400'};"
+                >
+                  <span style="width:8px;height:8px;border-radius:50%;background:#e8ecf4;flex-shrink:0;"></span>
+                  Net Worth
+                  <span style="margin-left:auto;font-size:9px;color:var(--t4);">all internal</span>
                 </div>
                 {#each internalAccts as a (a.id)}
-                  {@const on = store.chartSelectedAccts.has(a.id)}
-                  <label style="display:flex;align-items:center;gap:8px;padding:5px 12px;cursor:pointer;font-family:var(--mono);font-size:11px;color:{on ? 'var(--t1)' : 'var(--t3)'};">
-                    <input type="checkbox" checked={on} onchange={() => toggleChartAcct(a.id)} />
+                  {@const on = store.chartSelectedAcctId === a.id}
+                  <div
+                    role="button"
+                    tabindex="0"
+                    onclick={() => selectAcct(a.id)}
+                    onkeydown={(e) => e.key === 'Enter' && selectAcct(a.id)}
+                    style="display:flex;align-items:center;gap:8px;padding:5px 12px;cursor:pointer;font-family:var(--mono);font-size:11px;color:{on ? 'var(--t1)' : 'var(--t3)'};background:{on ? 'var(--s2)' : 'transparent'};font-weight:{on ? '600' : '400'};"
+                  >
                     <span style="width:8px;height:8px;border-radius:50%;background:{ACCT_COLORS[a.type] || '#6a7490'};flex-shrink:0;"></span>
                     {a.name}
                     <span style="margin-left:auto;font-size:9px;color:var(--t4);">{TYPE_LABELS[a.type] || a.type}</span>
-                  </label>
+                  </div>
                 {/each}
               </div>
             {/if}
@@ -201,11 +286,12 @@
         {#if store.simData}
           <BalanceChart
             snapshots={chartSnapshots}
-            {selectedAccounts}
-            mode={chartMode}
+            {primaryLine}
+            {selectedAcctIds}
             projMonths={projMonths}
             resolution={store.config.resolution}
             transfers={store.simData.allTransfers}
+            {compareLines}
           />
         {/if}
       </div>
@@ -216,6 +302,26 @@
         <div class="proj-section-head">
           <div class="dash-h" style="margin:0;">Net worth breakdown (end of period)</div>
         </div>
+        {#if compareScenarios.length}
+          <div style="margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--b2);">
+            <div style="font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:0.8px;color:var(--t4);margin-bottom:6px;">Compare scenarios — net worth at end of period</div>
+            <div class="nw-row" style="font-weight:600;">
+              <div class="nw-dot" style="background:var(--grn);"></div>
+              <div class="nw-name">{store.activeScenario?.name ?? 'Active'} <span style="color:var(--t4);font-size:9px;margin-left:6px;">active</span></div>
+              <div class="nw-val" style="color:var(--grn);">{fmt2(finalNW)}</div>
+            </div>
+            {#each compareScenarios as cs, i (cs.id)}
+              {@const color = ['#f5a847', '#ec4899', '#a78bfa', '#22d3ee', '#84cc16', '#fb923c'][i % 6]}
+              {@const delta = cs.finalNW - finalNW}
+              <div class="nw-row">
+                <div class="nw-dot" style="background:{color};"></div>
+                <div class="nw-name">{cs.name}</div>
+                <div class="nw-val" style="color:{cs.finalNW >= 0 ? 'var(--grn)' : 'var(--red)'};">{fmt2(cs.finalNW)}</div>
+                <div class="nw-pct" style="color:{delta >= 0 ? 'var(--grn)' : 'var(--red)'};">{delta >= 0 ? '+' : ''}{fmt2(delta)}</div>
+              </div>
+            {/each}
+          </div>
+        {/if}
         {#each sortedNW as a (a.id)}
           {@const bal = store.simData.finalBalances[a.id] || 0}
           <div class="nw-row">
@@ -253,33 +359,35 @@
           <button type="button" onclick={collapseAll} title="Collapse all rows" style="font-size:10px;padding:3px 8px;">⊟</button>
         </div>
       </div>
-      {#if selectedAccounts.length === 0}
+      {#if isNW}
         <div style="font-family:var(--mono);font-size:11px;color:var(--t4);padding:24px;text-align:center;">
-          No accounts selected. Use the account picker above to choose at least one.
+          Pick a specific account in the picker above to see its scheduled flows.
+        </div>
+      {:else if !selectedAccount}
+        <div style="font-family:var(--mono);font-size:11px;color:var(--t4);padding:24px;text-align:center;">
+          No account selected.
         </div>
       {:else}
-        {#each selectedAccounts as a (a.id)}
-          <div class="proj-sched-block">
-            <div class="proj-sched-head">
-              <span class="proj-sched-dot" style:background={ACCT_COLORS[a.type] || '#6a7490'}></span>
-              <span class="proj-sched-name">{a.name}</span>
-              <span class="proj-sched-meta">
-                Current balance
-                <span style="color:{a.balance >= 0 ? 'var(--grn)' : 'var(--red)'};font-weight:600;">{fmt2(a.balance)}</span>
-                {#if a.annualRate}
-                  <span style="color:var(--t4);"> · {(a.annualRate * 100).toFixed(2)}% rate (interest not projected here)</span>
-                {/if}
-              </span>
-            </div>
-            <ScheduleTable
-              bind:this={scheduleTables[a.id]}
-              acctId={a.id}
-              rangeStart={simStartStr}
-              rangeEnd={simEndStr}
-              resolution={store.config.resolution}
-            />
+        <div class="proj-sched-block">
+          <div class="proj-sched-head">
+            <span class="proj-sched-dot" style:background={ACCT_COLORS[selectedAccount.type] || '#6a7490'}></span>
+            <span class="proj-sched-name">{selectedAccount.name}</span>
+            <span class="proj-sched-meta">
+              Current balance
+              <span style="color:{selectedAccount.balance >= 0 ? 'var(--grn)' : 'var(--red)'};font-weight:600;">{fmt2(selectedAccount.balance)}</span>
+              {#if selectedAccount.annualRate}
+                <span style="color:var(--t4);"> · {(selectedAccount.annualRate * 100).toFixed(2)}% rate (interest not projected here)</span>
+              {/if}
+            </span>
           </div>
-        {/each}
+          <ScheduleTable
+            bind:this={scheduleTables[selectedAccount.id]}
+            acctId={selectedAccount.id}
+            rangeStart={simStartStr}
+            rangeEnd={simEndStr}
+            resolution={store.config.resolution}
+          />
+        </div>
       {/if}
     </div>
   </div>
