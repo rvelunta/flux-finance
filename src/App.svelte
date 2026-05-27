@@ -12,10 +12,35 @@
   import AccountModal from './components/AccountModal.svelte';
   import FlowModal from './components/FlowModal.svelte';
   import ScheduleModal from './components/ScheduleModal.svelte';
+  import AccountMenu from './components/AccountMenu.svelte';
+  import AuthModal from './components/AuthModal.svelte';
+  import ConflictModal from './components/ConflictModal.svelte';
+  import { initAuth, auth } from './lib/sync.svelte.js';
+  import { onMount } from 'svelte';
 
+  const FIRST_RUN_KEY = 'flux_first_run_dismissed';
   let fileInput;
   let menuOpen = $state(false);
   let scenarioMenuOpen = $state(false);
+  let authModalOpen = $state(false);
+  let firstRunDismissed = $state(
+    typeof localStorage !== 'undefined' && localStorage.getItem(FIRST_RUN_KEY) === '1'
+  );
+
+  function dismissFirstRun() {
+    try { localStorage.setItem(FIRST_RUN_KEY, '1'); } catch {}
+    firstRunDismissed = true;
+  }
+
+  $effect(() => {
+    if (auth.user && !firstRunDismissed) dismissFirstRun();
+  });
+
+  const showFirstRun = $derived(
+    !firstRunDismissed && !auth.user && auth.status !== 'loading' && auth.status !== 'unconfigured'
+  );
+
+  onMount(() => { initAuth(); });
 
   const tabs = [
     { id: 'projection', label: 'Projection' },
@@ -126,8 +151,17 @@
       <button onclick={exportJSON}>Export</button>
       <button onclick={() => fileInput.click()}>Import</button>
       <input type="file" bind:this={fileInput} accept=".json" style="display:none" onchange={onImport} />
+      <AccountMenu onOpenAuth={() => (authModalOpen = true)} />
     </div>
   </div>
+
+  {#if showFirstRun}
+    <div class="first-run-banner">
+      <span class="frb-msg">Sign in to back up your scenarios and sync them across devices. Your data stays on this device until you do.</span>
+      <button class="frb-cta" onclick={() => { authModalOpen = true; }}>Sign in</button>
+      <button class="frb-dismiss" onclick={dismissFirstRun} title="Don't show again">Maybe later</button>
+    </div>
+  {/if}
 
   <KpiBanner />
 
@@ -188,3 +222,7 @@
 {#if ui.scheduleModal}
   <ScheduleModal />
 {/if}
+{#if authModalOpen && !auth.user}
+  <AuthModal onClose={() => (authModalOpen = false)} />
+{/if}
+<ConflictModal />

@@ -1,5 +1,27 @@
 # Changelog
 
+## 3.12.0 — 2026-05-27
+
+### Added
+- **User accounts and cross-device sync** (Supabase). Optional sign-in via email + password or magic link. When authenticated, the persisted state blob (`scenarios / activeScenarioId / compareIds / customFlowCats / flowCatDisplay / config`) is mirrored to a `public.user_data` JSONB row keyed by `auth.uid()` with Row-Level Security ensuring users only see their own row.
+- **First-run banner** — soft prompt below the topbar inviting sign-in for backup/sync; one-time dismiss stored as `flux_first_run_dismissed=1`. Auto-dismissed on successful sign-in.
+- **`AccountMenu` topbar widget** — `Sign in` when anonymous; `● <email> ▾` dropdown with `Sign out` when authenticated; subtle `local-only` indicator when env vars aren't configured.
+- **`AuthModal`** — tabbed Sign in / Sign up with password fields plus a `Send magic link` button.
+- **`ConflictModal`** — on first sign-in when both device and account have data, shows row counts for each and asks the user to pick `Keep device → upload` or `Keep account → replace device`.
+- **`supabase/schema.sql`** — idempotent setup for the `user_data` table, RLS policies, and `updated_at` trigger.
+- **`.env.example`** + `envDir: '..'` in `vite.config.js` so env files live at the project root next to `.gitignore` (rather than under `src/`).
+
+### Architecture
+- **Offline-first preserved.** Auth is opt-in; the app continues to work without an account, with `localStorage` as the source of truth. On sign-in, server data syncs in (or local data uploads if the server row is empty). On sign-out, localStorage stays put so the user can keep working.
+- **Save pipeline** — `saveLS()` now calls an `afterSaveHook` registered by the sync layer, which debounces (800ms) an upsert to Supabase when authed. `pushNow()` exists for unconditional/immediate writes (used after conflict resolution).
+- **New `state.svelte.js` exports**: `LS_KEY`, `snapshotPersisted()`, `applyPersistedShape()`, `hasLocalData()`, `setAfterSaveHook()`. `importJSON()` refactored to use `applyPersistedShape()`.
+- **`isSupabaseConfigured`** flag lets the app degrade gracefully to local-only mode when env vars are missing.
+
+### Notes
+- Last-write-wins between devices for the same user (no optimistic concurrency yet — fine for the "laptop, then phone" workflow).
+- Sign-out does **not** clear localStorage; if user B signs in on the same browser they'll briefly see user A's data and get the conflict prompt. Strengthen later if needed.
+- Bundle size jumped from ~360KB → ~580KB (Supabase SDK). Code-splitting deferred.
+
 ## 3.11.0 — 2026-05-27
 
 ### Changed

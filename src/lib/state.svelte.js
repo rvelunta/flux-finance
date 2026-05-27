@@ -3,8 +3,11 @@ import { FLOW_CAT_DISPLAY as SEED_CAT_DISPLAY } from './constants.js';
 import { fmtD, parseDate } from './dates.js';
 import { runSimulation } from './engine.js';
 
-const LS_KEY = 'flux_v3';
+export const LS_KEY = 'flux_v3';
 const LEGACY_LS_KEY = 'cfe_v2e';
+
+let afterSaveHook = null;
+export function setAfterSaveHook(fn) { afterSaveHook = fn; }
 
 function loadInitial() {
   try {
@@ -121,17 +124,38 @@ export function toggleCompare(id) {
   saveLS();
 }
 
+export function snapshotPersisted() {
+  return {
+    scenarios: $state.snapshot(store.scenarios),
+    activeScenarioId: store.activeScenarioId,
+    compareIds: [...store.compareIds],
+    customFlowCats: $state.snapshot(store.customFlowCats),
+    flowCatDisplay: $state.snapshot(store.flowCatDisplay),
+    config: $state.snapshot(store.config),
+  };
+}
+
 export function saveLS() {
   try {
-    localStorage.setItem(LS_KEY, JSON.stringify({
-      scenarios: store.scenarios,
-      activeScenarioId: store.activeScenarioId,
-      compareIds: [...store.compareIds],
-      customFlowCats: store.customFlowCats,
-      flowCatDisplay: store.flowCatDisplay,
-      config: store.config,
-    }));
+    localStorage.setItem(LS_KEY, JSON.stringify(snapshotPersisted()));
   } catch {}
+  if (afterSaveHook) afterSaveHook();
+}
+
+export function applyPersistedShape(raw) {
+  const d = migrateShape(raw);
+  if (!d) return;
+  if (d.scenarios) store.scenarios = d.scenarios;
+  if (d.activeScenarioId) store.activeScenarioId = d.activeScenarioId;
+  if (Array.isArray(d.compareIds)) store.compareIds = new Set(d.compareIds);
+  if (d.customFlowCats) store.customFlowCats = d.customFlowCats;
+  if (d.flowCatDisplay) Object.assign(store.flowCatDisplay, d.flowCatDisplay);
+  if (d.config) store.config = { ...store.config, ...d.config };
+  simulate();
+}
+
+export function hasLocalData() {
+  try { return localStorage.getItem(LS_KEY) !== null; } catch { return false; }
 }
 
 export function exportJSON() {
@@ -156,14 +180,7 @@ export function importJSON(file) {
     const r = new FileReader();
     r.onload = (ev) => {
       try {
-        const d = migrateShape(JSON.parse(ev.target.result));
-        if (d.scenarios) store.scenarios = d.scenarios;
-        if (d.activeScenarioId) store.activeScenarioId = d.activeScenarioId;
-        if (Array.isArray(d.compareIds)) store.compareIds = new Set(d.compareIds);
-        if (d.customFlowCats) store.customFlowCats = d.customFlowCats;
-        if (d.flowCatDisplay) Object.assign(store.flowCatDisplay, d.flowCatDisplay);
-        if (d.config) store.config = { ...store.config, ...d.config };
-        simulate();
+        applyPersistedShape(JSON.parse(ev.target.result));
         saveLS();
         resolve();
       } catch (err) { reject(err); }

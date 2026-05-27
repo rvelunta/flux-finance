@@ -399,18 +399,6 @@
     overflow-y: auto;
     overflow-x: hidden;
   }
-  .proj-mobile-ctrl {
-    display: none;
-  }
-  @media (max-width: 640px) {
-    .proj-mobile-ctrl {
-      display: flex;
-      justify-content: flex-end;
-      padding: 10px 14px;
-      background: var(--s1);
-      border-bottom: 1px solid var(--b1);
-    }
-  }
   .proj-section {
     padding: 18px 28px;
     border-bottom: 1px solid var(--b1);
