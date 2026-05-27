@@ -1,5 +1,15 @@
 # Changelog
 
+## 3.11.0 — 2026-05-27
+
+### Changed
+- **Mobile pass for table-heavy tabs.** Accounts and Flows now render the desktop table at all viewport widths instead of falling back to a card grid on phones; the wrapper allows horizontal swipe when columns don't fit. The card markup is retained but hidden.
+- **Scenario chips → dropdown menu.** The wrapping `+ Fork`/chip row in the topbar is replaced with a single compact `SCENARIO · <name> ▾` trigger. Open menu lists scenarios with inline rename (✎) and delete (×) controls and a `+ Fork active` action; right-click still renames as a desktop shortcut.
+- **KPI ribbon → single-row strip.** The five `.kpi` cards (~80–90px tall) are replaced with a one-row `.kpi-strip` showing `Range | NW | Min | In | Out | Net`. Sub-info (Δ over horizon, savings rate, min-bal date) moved into `title=` tooltips. Strip scrolls horizontally on narrow viewports.
+- **Projection range controls collapsible at all widths.** The Start/End/Span/Resolution row is now hidden behind a `Range · 12mo · monthly ▾` toggle on every viewport, not just mobile.
+- **Unified Accounts/Flows toolbars.** Both tabs now use the same `.view-toolbar` layout — `[inner tabs (left)] [filters ▾] [+ Add]` — with the tabs sharing available width like a segmented control (`flex:1 1 0` each, `min-width:64px`, ellipsis on overflow). Dropped the `<h3>Flows</h3>` title and filtered-count badge. `flex-wrap:nowrap` keeps everything on one row; the toolbar scrolls horizontally as a fallback if a viewport is genuinely too narrow.
+- **`.ctrl-toggle` default style is now compact** (10px font, 4×10 padding); mobile block ups it to a 34–36px touch target.
+
 ## 3.10.3 — 2026-05-25
 
 ### Changed

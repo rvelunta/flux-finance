@@ -15,6 +15,7 @@
 
   let fileInput;
   let menuOpen = $state(false);
+  let scenarioMenuOpen = $state(false);
 
   const tabs = [
     { id: 'projection', label: 'Projection' },
@@ -38,11 +39,13 @@
       closeFlowModal();
       closeScheduleModal();
       menuOpen = false;
+      scenarioMenuOpen = false;
     }
   }
 
   function onDocClick(e) {
     if (!e.target.closest('#tabMenuWrap')) menuOpen = false;
+    if (!e.target.closest('#scenarioMenuWrap')) scenarioMenuOpen = false;
   }
 
   function selectTab(id) {
@@ -73,30 +76,51 @@
 <div class="chrome">
   <div class="topbar">
     <h1>FLUX <em>v3</em></h1>
-    <div class="scenario-bar">
-      {#each store.scenarios as s (s.id)}
-        <button
-          type="button"
-          class="sc-chip"
-          class:active={store.activeScenarioId === s.id}
-          onclick={() => selectScenario(s.id)}
-          oncontextmenu={(e) => onRenameScenario(e, s)}
-          title="Click to switch · Right-click to rename"
-        >
-          {s.name}
-          {#if s.id !== 'baseline'}
-            <span
-              class="sc-chip-x"
-              role="button"
-              tabindex="-1"
-              onclick={(e) => onDeleteScenario(e, s)}
-              onkeydown={(e) => e.key === 'Enter' && onDeleteScenario(e, s)}
-              title="Delete"
-            >×</span>
-          {/if}
-        </button>
-      {/each}
-      <button type="button" class="sc-chip sc-chip-new" onclick={onNewScenario} title="Fork active scenario">+ Fork</button>
+    <div class="scenario-menu" id="scenarioMenuWrap">
+      <button
+        type="button"
+        class="scenario-menu-trigger"
+        onclick={(e) => { e.stopPropagation(); scenarioMenuOpen = !scenarioMenuOpen; }}
+        title="Switch scenario"
+      >
+        <span class="sm-label">Scenario</span>
+        <span class="sm-name">{store.activeScenario?.name ?? 'Baseline'}</span>
+        <span class="sm-caret">{scenarioMenuOpen ? '▴' : '▾'}</span>
+      </button>
+      {#if scenarioMenuOpen}
+        <div class="scenario-menu-list">
+          {#each store.scenarios as s (s.id)}
+            <div class="sm-row" class:active={store.activeScenarioId === s.id}>
+              <button
+                type="button"
+                class="sm-pick"
+                onclick={() => { selectScenario(s.id); scenarioMenuOpen = false; }}
+                oncontextmenu={(e) => onRenameScenario(e, s)}
+                title="Click to switch · Right-click to rename"
+              >{s.name}</button>
+              <button
+                type="button"
+                class="sm-edit"
+                onclick={(e) => { e.stopPropagation(); onRenameScenario(e, s); }}
+                title="Rename"
+              >✎</button>
+              {#if s.id !== 'baseline'}
+                <button
+                  type="button"
+                  class="sm-del"
+                  onclick={(e) => onDeleteScenario(e, s)}
+                  title="Delete"
+                >×</button>
+              {/if}
+            </div>
+          {/each}
+          <button
+            type="button"
+            class="sm-fork"
+            onclick={() => { onNewScenario(); scenarioMenuOpen = false; }}
+          >+ Fork active</button>
+        </div>
+      {/if}
     </div>
     <div class="topbar-r">
       <button onclick={exportJSON}>Export</button>

@@ -200,13 +200,13 @@
 <svelte:document onclick={onDocClick} />
 
 <div class="view active" style="flex-direction:column;overflow:hidden;">
-  <div class="proj-mobile-ctrl">
-    <button type="button" class="ctrl-toggle" onclick={() => ctrlOpen = !ctrlOpen}>
-      <span>Range</span>
+  <div class="proj-range-bar">
+    <button type="button" class="ctrl-toggle proj-range-toggle" onclick={() => ctrlOpen = !ctrlOpen}>
+      <span>Range · {projMonths}mo · {store.config.resolution}</span>
       <span class="ctrl-toggle-caret">{ctrlOpen ? '▴' : '▾'}</span>
     </button>
   </div>
-  <div class="ctrl-body" class:open={ctrlOpen}>
+  <div class="ctrl-body proj-range-body" class:open={ctrlOpen}>
     <label for="projStart">Start</label>
     <input id="projStart" type="date" bind:value={store.config.startDate} />
     <label for="projEnd">End</label>

@@ -152,21 +152,20 @@
 
 <div class="view active" style="flex-direction:column;overflow:hidden;">
   <div class="flows-wrap">
-    <div class="flows-toolbar">
-      <h3>Flows{flowView === 'list' ? ` (${filtered.length}${filtered.length !== store.flows.length ? ' / ' + store.flows.length : ''})` : ''}</h3>
-      <div style="display:flex;gap:6px;align-items:center;margin-left:14px;">
+    <div class="view-toolbar">
+      <div class="vt-tabs">
         <button class="sb-filter" class:active={flowView === 'list'} onclick={() => flowView = 'list'}>List</button>
         <button class="sb-filter" class:active={flowView === 'income'} onclick={() => flowView = 'income'}>Income</button>
         <button class="sb-filter" class:active={flowView === 'expenses'} onclick={() => flowView = 'expenses'}>Expenses</button>
       </div>
-      <div style="display:flex;gap:8px;align-items:center;margin-left:auto;">
+      <div class="vt-actions">
         {#if flowView === 'list'}
           <button type="button" class="ctrl-toggle" onclick={() => ctrlOpen = !ctrlOpen}>
             <span>Filters{activeFilterCount ? ` (${activeFilterCount})` : ''}</span>
             <span class="ctrl-toggle-caret">{ctrlOpen ? '▴' : '▾'}</span>
           </button>
         {/if}
-        <button class="act" onclick={() => openFlowModal()}>+ Add Flow</button>
+        <button class="act" onclick={() => openFlowModal()}>+ Add</button>
       </div>
     </div>
     {#if flowView === 'list'}

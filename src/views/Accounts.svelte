@@ -125,21 +125,21 @@
 </script>
 
 <div class="view active" style="flex-direction:column;overflow:hidden;">
-  <div class="ctrl">
-    <button class="act" onclick={() => openAccountModal()}>+ Add Account</button>
-    <span style="display:flex;gap:6px;align-items:center;margin-left:14px;">
+  <div class="view-toolbar">
+    <div class="vt-tabs">
       <button class="sb-filter" class:active={acctView === 'list'} onclick={() => acctView = 'list'}>List</button>
       <button class="sb-filter" class:active={acctView === 'portfolio'} onclick={() => acctView = 'portfolio'}>Portfolio</button>
       <button class="sb-filter" class:active={acctView === 'linked'} onclick={() => acctView = 'linked'}>Linked</button>
-    </span>
-    <span style="margin-left:auto;display:flex;gap:8px;align-items:center;">
+    </div>
+    <div class="vt-actions">
       {#if acctView === 'list'}
         <button type="button" class="ctrl-toggle" onclick={() => ctrlOpen = !ctrlOpen}>
           <span>Filters{activeFilterCount ? ` (${activeFilterCount})` : ''}</span>
           <span class="ctrl-toggle-caret">{ctrlOpen ? '▴' : '▾'}</span>
         </button>
       {/if}
-    </span>
+      <button class="act" onclick={() => openAccountModal()}>+ Add</button>
+    </div>
   </div>
   {#if acctView === 'list'}
   <div class="ctrl-body" class:open={ctrlOpen}>

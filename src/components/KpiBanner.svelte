@@ -26,47 +26,40 @@
     });
     return { finalNW, nwDelta, months: projMonths, mIn: tIn / projMonths, mOut: tOut / projMonths };
   });
+
+  const minBalColor = $derived(
+    store.simData
+      ? (store.simData.minBal < 0 ? 'var(--red)' : store.simData.minBal < 2000 ? 'var(--amb)' : 'var(--t1)')
+      : 'var(--t1)'
+  );
+  const netColor = $derived(kpis && kpis.mIn - kpis.mOut >= 0 ? 'var(--grn)' : 'var(--red)');
 </script>
 
-<div class="ctrl">
-  <span style="font-family:var(--mono);font-size:10px;color:var(--t3);">
-    Projection {store.config.startDate} → {store.config.endDate} · ≈ {projMonths} mo
-  </span>
-  {#if store.activeView !== 'projection'}
-    <span style="margin-left:auto;font-family:var(--mono);font-size:10px;color:var(--t4);">
-      Set range on the Projection tab
-    </span>
+<div class="kpi-strip">
+  <div class="kc range" title="Set on the Projection tab">
+    <span class="kc-l">Range</span>
+    <span class="kc-v dim">{store.config.startDate} → {store.config.endDate} · {projMonths}mo</span>
+  </div>
+  {#if kpis}
+    <div class="kc" title="Δ {kpis.nwDelta >= 0 ? '+' : ''}{fmt0(kpis.nwDelta)} over {kpis.months}mo">
+      <span class="kc-l">NW</span>
+      <span class="kc-v" style="color:var(--grn)">{fmt2(kpis.finalNW)}</span>
+    </div>
+    <div class="kc" title="on {store.simData.minBalDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}">
+      <span class="kc-l">Min</span>
+      <span class="kc-v" style="color:{minBalColor}">{fmt2(store.simData.minBal)}</span>
+    </div>
+    <div class="kc" title="to checking, monthly avg">
+      <span class="kc-l">In</span>
+      <span class="kc-v" style="color:var(--grn)">{fmt0(kpis.mIn)}</span>
+    </div>
+    <div class="kc" title="from checking, monthly avg">
+      <span class="kc-l">Out</span>
+      <span class="kc-v" style="color:var(--red)">{fmt0(kpis.mOut)}</span>
+    </div>
+    <div class="kc" title="savings rate {kpis.mIn > 0 ? ((kpis.mIn - kpis.mOut) / kpis.mIn * 100).toFixed(0) : 0}%">
+      <span class="kc-l">Net</span>
+      <span class="kc-v" style="color:{netColor}">{kpis.mIn - kpis.mOut >= 0 ? '+' : '-'}{fmt0(Math.abs(kpis.mIn - kpis.mOut))}</span>
+    </div>
   {/if}
 </div>
-
-{#if kpis}
-  <div class="kpis">
-    <div class="kpi">
-      <div class="k-label">Net Worth</div>
-      <div class="k-val" style="color:var(--grn)">{fmt2(kpis.finalNW)}</div>
-      <div class="k-sub">{kpis.nwDelta >= 0 ? '+' : ''}{fmt0(kpis.nwDelta)} over {kpis.months}mo</div>
-    </div>
-    <div class="kpi">
-      <div class="k-label">Checking Min</div>
-      <div class="k-val" style="color:{store.simData.minBal < 0 ? 'var(--red)' : store.simData.minBal < 2000 ? 'var(--amb)' : 'var(--t1)'}">{fmt2(store.simData.minBal)}</div>
-      <div class="k-sub">{store.simData.minBalDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</div>
-    </div>
-    <div class="kpi">
-      <div class="k-label">Mo. Inflow</div>
-      <div class="k-val" style="color:var(--grn)">{fmt0(kpis.mIn)}</div>
-      <div class="k-sub">to checking</div>
-    </div>
-    <div class="kpi">
-      <div class="k-label">Mo. Outflow</div>
-      <div class="k-val" style="color:var(--red)">{fmt0(kpis.mOut)}</div>
-      <div class="k-sub">from checking</div>
-    </div>
-    <div class="kpi">
-      <div class="k-label">Mo. Net</div>
-      <div class="k-val" style="color:{kpis.mIn - kpis.mOut >= 0 ? 'var(--grn)' : 'var(--red)'}">
-        {kpis.mIn - kpis.mOut >= 0 ? '+' : '-'}{fmt0(Math.abs(kpis.mIn - kpis.mOut))}
-      </div>
-      <div class="k-sub">savings rate {kpis.mIn > 0 ? ((kpis.mIn - kpis.mOut) / kpis.mIn * 100).toFixed(0) : 0}%</div>
-    </div>
-  </div>
-{/if}
