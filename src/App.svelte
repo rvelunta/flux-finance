@@ -241,7 +241,11 @@
   <AuthModal onClose={() => (authModalOpen = false)} />
 {/if}
 {#if llmModalOpen}
-  <LLMInputModal onClose={() => (llmModalOpen = false)} mode={llmModalMode} />
+  <LLMInputModal
+    onClose={() => (llmModalOpen = false)}
+    mode={llmModalMode}
+    onRequestSignIn={() => (authModalOpen = true)}
+  />
 {/if}
 {#if wizardModalOpen}
   <WizardModal onClose={() => (wizardModalOpen = false)} />

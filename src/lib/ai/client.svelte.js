@@ -1,12 +1,18 @@
 import { SETUP_SYSTEM_PROMPT, EDIT_SYSTEM_PROMPT_TEMPLATE } from './prompt.js';
 import { SUBMIT_SCENARIO_TOOL, APPLY_EDITS_TOOL, summarizeScenario } from './schema.js';
+import { supabase, isSupabaseConfigured } from '../supabase.js';
 
-// PROTOTYPE ONLY: the API key is bundled into the browser app via Vite env var.
-// For production, route through a small proxy that keeps the key server-side
-// and forwards requests to api.anthropic.com.
-const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY;
+// The Anthropic key lives server-side in the "anthropic-proxy" Supabase Edge
+// Function. The client calls that proxy with the user's Supabase access token;
+// the proxy verifies the user and forwards to Anthropic with the real key.
+// Nothing secret ships to the browser/app.
+const PROXY_URL = isSupabaseConfigured
+  ? `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/anthropic-proxy`
+  : null;
 
-export const isAIConfigured = Boolean(apiKey && apiKey.startsWith('sk-ant-'));
+// "Configured" = the backend (Supabase) exists. Actually *using* it also needs
+// the user signed in — checked per request in sendUserTurn.
+export const isAIConfigured = isSupabaseConfigured;
 
 export const MODEL_ID = 'claude-haiku-4-5';
 
@@ -16,11 +22,21 @@ let client = null;
 
 async function ensureClient() {
   if (client) return client;
-  if (!isAIConfigured) return null;
+  if (!PROXY_URL) return null;
   const mod = await import('@anthropic-ai/sdk');
   Anthropic = mod.default;
-  client = new Anthropic({ apiKey, dangerouslyAllowBrowser: true });
+  client = new Anthropic({
+    apiKey: 'proxied-no-key', // unused; the proxy injects the real key
+    baseURL: PROXY_URL,
+    dangerouslyAllowBrowser: true, // safe now — no real key in the browser
+  });
   return client;
+}
+
+async function currentAccessToken() {
+  if (!supabase) return null;
+  const { data: { session } } = await supabase.auth.getSession();
+  return session?.access_token ?? null;
 }
 
 export const ai = $state({
@@ -71,7 +87,13 @@ function terminalToolName() {
 export async function sendUserTurn(userText, { forceSubmit = false, displayText = null } = {}) {
   const c = await ensureClient();
   if (!c) {
-    ai.error = 'Anthropic API key not configured.';
+    ai.error = 'AI backend not configured (missing Supabase project).';
+    ai.status = 'error';
+    return;
+  }
+  const token = await currentAccessToken();
+  if (!token) {
+    ai.error = 'Sign in to use the AI assistant — it runs in the cloud.';
     ai.status = 'error';
     return;
   }
@@ -101,6 +123,9 @@ export async function sendUserTurn(userText, { forceSubmit = false, displayText 
       system: buildSystem(),
       tools: activeTools(),
       messages: apiMessages,
+    }, {
+      // Per-request so the token is always fresh (sessions refresh ~hourly).
+      headers: { Authorization: `Bearer ${token}` },
     });
 
     stream.on('text', (delta) => {
@@ -141,9 +166,9 @@ export async function sendUserTurn(userText, { forceSubmit = false, displayText 
     const isAuth = Anthropic && err instanceof Anthropic.AuthenticationError;
     const isRate = Anthropic && err instanceof Anthropic.RateLimitError;
     const isAPI  = Anthropic && err instanceof Anthropic.APIError;
-    if (isAuth) ai.error = 'Invalid Anthropic API key — check VITE_ANTHROPIC_API_KEY in .env.local.';
+    if (isAuth) ai.error = 'Session rejected by the proxy. Try signing out and back in; if it persists, the proxy may be missing its ANTHROPIC_API_KEY secret.';
     else if (isRate) ai.error = 'Rate limited. Wait a moment and try again.';
-    else if (isAPI) ai.error = `API error ${err.status}: ${err.message}`;
+    else if (isAPI) ai.error = `Proxy/API error ${err.status}: ${err.message}`;
     else ai.error = err.message || String(err);
   }
 }
