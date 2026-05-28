@@ -1,5 +1,14 @@
 # Changelog
 
+## [Unreleased] — `feature/ai-proxy` branch
+
+### Added
+- **AI proxy** — the Anthropic key now lives server-side in the `anthropic-proxy` Supabase Edge Function (`supabase/functions/anthropic-proxy/`), not in the client bundle. The client calls the proxy with the user's Supabase access token; the proxy verifies the user (`getUser`) and forwards to Anthropic. Pinned `verify_jwt = false` (the function does its own auth + CORS, required for the project's new-format keys).
+- **Capacitor web-side prep** (mobile v4, Phase 1) — `@capacitor/core` + `preferences` + `cli`, `capacitor.config.ts`, Vite `base: './'` for relative asset URLs, and Supabase session storage backed by `@capacitor/preferences` on native. See [MOBILE.md](MOBILE.md).
+
+### Changed (behavior)
+- **AI now requires sign-in** (cloud-only via the proxy). The rest of the app stays local and works signed-out. Web dev no longer uses `VITE_ANTHROPIC_API_KEY` — deploy the proxy and set `ANTHROPIC_API_KEY` as a Supabase secret instead.
+
 ## 3.13.0 — 2026-05-28
 
 ### Added
