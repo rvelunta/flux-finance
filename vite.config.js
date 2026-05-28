@@ -31,6 +31,9 @@ function stubAnthropicAgentToolset() {
 export default defineConfig({
   root: 'src',
   envDir: '..',
+  // Relative asset URLs so the build works under Capacitor's native WebView
+  // origin (capacitor://localhost / file://), not just a web server at '/'.
+  base: './',
   plugins: [svelte(), stubAnthropicAgentToolset()],
   resolve: {
     alias: {
