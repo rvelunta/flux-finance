@@ -1,5 +1,20 @@
 # Changelog
 
+## 3.13.0 — 2026-05-28
+
+### Added
+- **Input modes for getting data in.** Three ways to populate a scenario besides manual table entry:
+  - **Template wizard** (scenario menu → `+ New from template`) — pick W-2 renter / W-2 homeowner / blank, fill ~5–10 numbers, preview, apply. Templates live in `src/lib/wizard/templates.js`.
+  - **AI assistant** (scenario menu → `+ Describe your finances`, or topbar `✦ AI Edit`) — conversational setup and on-demand editing via Claude Haiku 4.5. Setup uses a `submit_scenario` tool; edit uses an `apply_edits` diff tool with a preview-and-apply step. Streaming responses, markdown rendering, and a 📎 file-attach (paste or attach a CSV/statement; the model parses arbitrary/messy data and infers recurring flows from transaction registers).
+- **`applyScenarioEdits(diff)`** in state — atomic add/modify/delete of accounts and flows with name→id resolution.
+
+### Changed
+- **Topbar** — removed `v3` from the title; the scenario dropdown is now grouped in the right-justified cluster instead of floating center; Export/Import moved into the account-menu dropdown (from [3.12.0]); the account menu always renders as a single trigger.
+
+### Notes
+- The AI assistant requires `VITE_ANTHROPIC_API_KEY`. **Prototype-only:** the key is currently bundled into the browser — a server-side proxy is required before any real release (and is a hard prerequisite for the mobile build).
+- A WebGPU on-device LLM approach was prototyped and abandoned (consumer-Mac WebGPU buffer limits); a local CSV column-mapper was prototyped and removed in favor of the more flexible AI file-attach. See `src/lib/ai/NOTES.md`.
+
 ## 3.12.0 — 2026-05-27
 
 ### Added

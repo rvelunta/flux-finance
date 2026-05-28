@@ -1,6 +1,6 @@
 <script>
   import {
-    store, ui, exportJSON, importJSON,
+    store, ui,
     closeAccountModal, closeFlowModal, closeScheduleModal,
     selectScenario, newScenario, renameScenario, deleteScenario,
   } from './lib/state.svelte.js';
@@ -15,14 +15,23 @@
   import AccountMenu from './components/AccountMenu.svelte';
   import AuthModal from './components/AuthModal.svelte';
   import ConflictModal from './components/ConflictModal.svelte';
+  import LLMInputModal from './components/LLMInputModal.svelte';
+  import WizardModal from './components/WizardModal.svelte';
   import { initAuth, auth } from './lib/sync.svelte.js';
   import { onMount } from 'svelte';
 
   const FIRST_RUN_KEY = 'flux_first_run_dismissed';
-  let fileInput;
   let menuOpen = $state(false);
   let scenarioMenuOpen = $state(false);
   let authModalOpen = $state(false);
+  let llmModalOpen = $state(false);
+  let llmModalMode = $state('setup');
+  let wizardModalOpen = $state(false);
+
+  function openLLM(mode) {
+    llmModalMode = mode;
+    llmModalOpen = true;
+  }
   let firstRunDismissed = $state(
     typeof localStorage !== 'undefined' && localStorage.getItem(FIRST_RUN_KEY) === '1'
   );
@@ -50,13 +59,6 @@
   ];
 
   const currentTab = $derived(tabs.find((t) => t.id === store.activeView) ?? tabs[0]);
-
-  function onImport(e) {
-    const file = e.target.files[0];
-    if (!file) return;
-    importJSON(file).catch(() => alert('Invalid JSON'));
-    e.target.value = '';
-  }
 
   function onKey(e) {
     if (e.key === 'Escape') {
@@ -100,7 +102,8 @@
 
 <div class="chrome">
   <div class="topbar">
-    <h1>FLUX <em>v3</em></h1>
+    <h1>FLUX</h1>
+    <div class="topbar-r">
     <div class="scenario-menu" id="scenarioMenuWrap">
       <button
         type="button"
@@ -144,13 +147,25 @@
             class="sm-fork"
             onclick={() => { onNewScenario(); scenarioMenuOpen = false; }}
           >+ Fork active</button>
+          <button
+            type="button"
+            class="sm-fork"
+            onclick={() => { wizardModalOpen = true; scenarioMenuOpen = false; }}
+          >+ New from template</button>
+          <button
+            type="button"
+            class="sm-fork"
+            onclick={() => { openLLM('setup'); scenarioMenuOpen = false; }}
+          >+ Describe your finances</button>
         </div>
       {/if}
     </div>
-    <div class="topbar-r">
-      <button onclick={exportJSON}>Export</button>
-      <button onclick={() => fileInput.click()}>Import</button>
-      <input type="file" bind:this={fileInput} accept=".json" style="display:none" onchange={onImport} />
+      <button
+        type="button"
+        class="ai-btn"
+        onclick={() => openLLM('edit')}
+        title="Edit the active scenario in conversation"
+      >✦ AI Edit</button>
       <AccountMenu onOpenAuth={() => (authModalOpen = true)} />
     </div>
   </div>
@@ -224,5 +239,11 @@
 {/if}
 {#if authModalOpen && !auth.user}
   <AuthModal onClose={() => (authModalOpen = false)} />
+{/if}
+{#if llmModalOpen}
+  <LLMInputModal onClose={() => (llmModalOpen = false)} mode={llmModalMode} />
+{/if}
+{#if wizardModalOpen}
+  <WizardModal onClose={() => (wizardModalOpen = false)} />
 {/if}
 <ConflictModal />

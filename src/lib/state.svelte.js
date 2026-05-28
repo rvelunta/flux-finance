@@ -214,6 +214,125 @@ export function newScenario(name) {
   return id;
 }
 
+export function createScenarioFromData(name, accounts, flows) {
+  const trimmed = (name || '').trim();
+  if (!trimmed) return null;
+  const id = 'sc-' + Math.random().toString(36).slice(2, 8);
+  store.scenarios.push({
+    id,
+    name: trimmed,
+    accounts: structuredClone($state.snapshot(accounts)),
+    flows: structuredClone($state.snapshot(flows)),
+  });
+  store.activeScenarioId = id;
+  simulate();
+  saveLS();
+  return id;
+}
+
+export function replaceActiveScenarioData(accounts, flows) {
+  const s = store.activeScenario;
+  if (!s) return;
+  s.accounts = structuredClone($state.snapshot(accounts));
+  s.flows = structuredClone($state.snapshot(flows));
+  simulate();
+  saveLS();
+}
+
+// Atomically apply a batch of edits to the active scenario.
+// All resolutions (name → id) happen here so callers can pass model output verbatim.
+export function applyScenarioEdits(diff) {
+  const s = store.activeScenario;
+  if (!s) return { applied: 0, skipped: [] };
+
+  // The caller usually passes a $state proxy (preview object). Unwrap once so
+  // the inner structuredClone calls don't trip DataCloneError on proxies.
+  diff = $state.snapshot(diff) ?? {};
+
+  const accountsById = new Map(s.accounts.map((a) => [a.id, a]));
+  const accountsByName = new Map(s.accounts.map((a) => [a.name.toLowerCase(), a]));
+  const flowsById = new Map(s.flows.map((f) => [f.id, f]));
+  const flowsByName = new Map(s.flows.map((f) => [f.name.toLowerCase(), f]));
+
+  const resolveAccount = (ref) =>
+    accountsById.get(ref) ?? accountsByName.get(String(ref).toLowerCase());
+  const resolveFlow = (ref) =>
+    flowsById.get(ref) ?? flowsByName.get(String(ref).toLowerCase());
+
+  const skipped = [];
+  let applied = 0;
+
+  for (const a of diff.add_accounts ?? []) {
+    s.accounts.push({ id: nid('a'), asOf: store.config.startDate, external: false, annualRate: 0, ...structuredClone(a) });
+    applied++;
+  }
+
+  for (const f of diff.add_flows ?? []) {
+    const fromAcct = resolveAccount(f.from);
+    const toAcct = resolveAccount(f.to);
+    if (!fromAcct || !toAcct) {
+      skipped.push(`Add flow "${f.name}" — unknown ${!fromAcct ? 'from' : 'to'} account`);
+      continue;
+    }
+    s.flows.push({
+      id: nid('f'),
+      enabled: true,
+      group: null,
+      start: store.config.startDate,
+      end: null,
+      ...structuredClone(f),
+      from: fromAcct.id,
+      to: toAcct.id,
+    });
+    applied++;
+  }
+
+  for (const m of diff.modify_accounts ?? []) {
+    const target = resolveAccount(m.target);
+    if (!target) { skipped.push(`Modify account "${m.target}" — not found`); continue; }
+    Object.assign(target, structuredClone(m.patch));
+    applied++;
+  }
+
+  for (const m of diff.modify_flows ?? []) {
+    const target = resolveFlow(m.target);
+    if (!target) { skipped.push(`Modify flow "${m.target}" — not found`); continue; }
+    const patch = { ...m.patch };
+    if (patch.from) { const a = resolveAccount(patch.from); patch.from = a?.id ?? target.from; }
+    if (patch.to)   { const a = resolveAccount(patch.to);   patch.to   = a?.id ?? target.to; }
+    Object.assign(target, structuredClone(patch));
+    applied++;
+  }
+
+  const accountIdsToDelete = new Set();
+  for (const ref of diff.delete_accounts ?? []) {
+    const a = resolveAccount(ref);
+    if (!a) { skipped.push(`Delete account "${ref}" — not found`); continue; }
+    accountIdsToDelete.add(a.id);
+  }
+  if (accountIdsToDelete.size) {
+    s.accounts = s.accounts.filter((a) => !accountIdsToDelete.has(a.id));
+    // Orphan any flows that referenced deleted accounts? Drop them.
+    s.flows = s.flows.filter((f) => !accountIdsToDelete.has(f.from) && !accountIdsToDelete.has(f.to));
+    applied += accountIdsToDelete.size;
+  }
+
+  const flowIdsToDelete = new Set();
+  for (const ref of diff.delete_flows ?? []) {
+    const f = resolveFlow(ref);
+    if (!f) { skipped.push(`Delete flow "${ref}" — not found`); continue; }
+    flowIdsToDelete.add(f.id);
+  }
+  if (flowIdsToDelete.size) {
+    s.flows = s.flows.filter((f) => !flowIdsToDelete.has(f.id));
+    applied += flowIdsToDelete.size;
+  }
+
+  simulate();
+  saveLS();
+  return { applied, skipped };
+}
+
 export function renameScenario(id, name) {
   const trimmed = (name || '').trim();
   if (!trimmed) return;
