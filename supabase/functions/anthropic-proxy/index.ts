@@ -15,21 +15,29 @@ import { createClient } from 'jsr:@supabase/supabase-js@2';
 
 const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages';
 
-const cors = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers':
-    'authorization, content-type, anthropic-version, anthropic-beta, x-api-key',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-};
-
-function json(status: number, payload: unknown) {
-  return new Response(JSON.stringify(payload), {
-    status,
-    headers: { ...cors, 'Content-Type': 'application/json' },
-  });
+// Echo back whatever headers the browser asks for in the preflight. The
+// Anthropic SDK (with dangerouslyAllowBrowser) sends anthropic-dangerous-
+// direct-browser-access and several x-stainless-* headers; a fixed allow-list
+// would miss them and the browser would block the request as a CORS failure.
+function corsFor(req: Request): Record<string, string> {
+  const requested = req.headers.get('Access-Control-Request-Headers');
+  return {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers':
+      requested ?? 'authorization, content-type, anthropic-version, anthropic-beta, x-api-key',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Max-Age': '86400',
+  };
 }
 
 Deno.serve(async (req) => {
+  const cors = corsFor(req);
+  const json = (status: number, payload: unknown) =>
+    new Response(JSON.stringify(payload), {
+      status,
+      headers: { ...cors, 'Content-Type': 'application/json' },
+    });
+
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
   if (req.method !== 'POST') return json(405, { error: 'Method not allowed' });
 
