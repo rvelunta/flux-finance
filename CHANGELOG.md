@@ -1,8 +1,9 @@
 # Changelog
 
-## [Unreleased] — `feature/ai-proxy` branch
+## 3.14.0 — 2026-06-11
 
 ### Added
+- **Light/dark theme.** Light is now the default; a ☾/☀ toggle in the topbar switches modes and the choice persists in `localStorage` (`flux_theme`). An inline script in `index.html` applies the saved theme before first paint (anti-FOUC). State + a `cssVar()` live-color reader live in `src/lib/theme.svelte.js`; the canvas/Chart.js views (`Graph`, `Projection`, `BalanceChart`) read theme colors through it so drawing follows the active mode. The palette moved to CSS custom properties under `:root` (light) and `[data-theme="dark"]`, with new `--shadow`/`--overlay` tokens.
 - **AI proxy** — the Anthropic key now lives server-side in the `anthropic-proxy` Supabase Edge Function (`supabase/functions/anthropic-proxy/`), not in the client bundle. The client calls the proxy with the user's Supabase access token; the proxy verifies the user (`getUser`) and forwards to Anthropic. Pinned `verify_jwt = false` (the function does its own auth + CORS, required for the project's new-format keys).
 - **Capacitor web-side prep** (mobile v4, Phase 1) — `@capacitor/core` + `preferences` + `cli`, `capacitor.config.ts`, Vite `base: './'` for relative asset URLs, and Supabase session storage backed by `@capacitor/preferences` on native. See [MOBILE.md](MOBILE.md).
 
