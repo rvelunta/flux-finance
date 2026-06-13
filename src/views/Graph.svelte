@@ -20,15 +20,18 @@
   let currentScale = 1;
   let graphLayout = null;
 
-  const LAYER_LABELS = ['Deductions', 'Income', 'Accounts', 'Expenses'];
-  const LAYER_LABEL_COLORS = ['#ef6461', '#2dd4a8', '#5b9cf6', '#f0b952'];
+  // Layers stack top → bottom: income enters at the top and meets friction on the
+  // way down. Ordered so every cross-layer flow points downward — assets pay down
+  // into debts below them, and everything drains to expenses at the bottom.
+  const LAYER_LABELS = ['Income', 'Deductions', 'Assets', 'Debts', 'Expenses'];
+  const LAYER_LABEL_COLORS = ['#2dd4a8', '#ef6461', '#5b9cf6', '#9b8afb', '#f0b952'];
 
   function getLayer(acct) {
-    if (!acct.external) return 2;
-    if (acct.type === 'income-source') return 1;
-    if (acct.type === 'tax') return 0;
-    if (acct.type === 'expense' && acct.name.toLowerCase().includes('benefit')) return 0;
-    return 3;
+    if (acct.type === 'income-source') return 0;     // Income (top)
+    if (acct.type === 'tax') return 1;               // Deductions
+    if (acct.type === 'expense' && acct.name.toLowerCase().includes('benefit')) return 1;  // Benefits → Deductions
+    if (!acct.external) return acct.type === 'debt' ? 3 : 2;  // internal: Debts vs Assets
+    return 4;                                        // Expenses (external)
   }
 
   // Vertical layered layout: each non-empty layer becomes a horizontal band,
@@ -37,7 +40,7 @@
   // needed and the wrap scrolls. Returns node positions, per-band metrics (for
   // labels + Y clamping), and the total canvas height.
   function buildVerticalLayout(nodes, W, rInt, sc) {
-    const layers = [[], [], [], []];
+    const layers = LAYER_LABELS.map(() => []);
     nodes.forEach((n) => { layers[n.layer].push(n); });
     const padX = W * 0.06;
     const usableW = W - padX * 2;
