@@ -72,35 +72,48 @@
     });
     const totalH = y + 28 * sc;
 
+    // Degree (edge count) drives centring: the most-connected node in each band
+    // takes the most central slot, the next ones flank it, and leaves fall to the
+    // edges — so the heavy flow runs down a central spine and the rest fans out.
+    // Barycentre (mean neighbour x) only breaks ties between equal-degree nodes.
+    const deg = {};
+    nodes.forEach((n) => { deg[n.id] = adj[n.id].length; });
+    const centerX = padX + usableW / 2;
+
     const positions = {};
-    const place = (list, band) => {
-      list.forEach((n, i) => {
-        const row = Math.floor(i / perRow);
-        const col = i % perRow;
-        const inRow = Math.min(perRow, list.length - row * perRow);
+    // Slots for a band, ordered most-central-first (then top rows first).
+    const bandSlots = (band, count) => {
+      const rows = Math.ceil(count / perRow);
+      const slots = [];
+      for (let r = 0; r < rows; r++) {
+        const inRow = Math.min(perRow, count - r * perRow);
         const slotW = usableW / inRow;
-        positions[n.id] = { x: padX + slotW * (col + 0.5), y: band.gridTop + cellH * (row + 0.5) };
+        for (let c = 0; c < inRow; c++) {
+          slots.push({ x: padX + slotW * (c + 0.5), y: band.gridTop + cellH * (r + 0.5) });
+        }
+      }
+      slots.sort((s1, s2) => (Math.abs(s1.x - centerX) - Math.abs(s2.x - centerX)) || (s1.y - s2.y));
+      return slots;
+    };
+    const place = (list, band) => {
+      const slots = bandSlots(band, list.length);
+      const bary = {};
+      list.forEach((n) => {
+        const nb = adj[n.id];
+        bary[n.id] = nb.length
+          ? nb.reduce((s, id) => s + (positions[id] ? positions[id].x : centerX), 0) / nb.length
+          : (positions[n.id] ? positions[n.id].x : centerX);
       });
+      const sorted = list.slice().sort((a, b) => (deg[b.id] - deg[a.id]) || (bary[a.id] - bary[b.id]));
+      sorted.forEach((n, i) => { positions[n.id] = slots[i]; });
     };
 
-    // Initial placement in input order, then a few barycenter ordering sweeps.
+    // Initial placement, then a few sweeps so the barycentre tie-break settles.
     const order = layers.map((l) => l.slice());
     order.forEach((list, li) => { if (list.length) place(list, bands[li]); });
-    for (let pass = 0; pass < 5; pass++) {
-      const idxs = order.map((_, i) => i);
-      const seq = pass % 2 === 0 ? idxs : idxs.reverse();
-      for (const li of seq) {
-        const list = order[li];
-        if (!list || list.length <= 1) continue;
-        const tx = {};
-        list.forEach((n) => {
-          const nb = adj[n.id];
-          tx[n.id] = nb.length
-            ? nb.reduce((s, id) => s + (positions[id] ? positions[id].x : positions[n.id].x), 0) / nb.length
-            : positions[n.id].x;
-        });
-        list.sort((a, b) => tx[a.id] - tx[b.id]);
-        place(list, bands[li]);
+    for (let pass = 0; pass < 4; pass++) {
+      for (let li = 0; li < order.length; li++) {
+        if (order[li].length) place(order[li], bands[li]);
       }
     }
 
@@ -303,23 +316,20 @@
       if (!a || !b) return;
       const isLit = litEdges.has(e);
       const ghost = focus && !isLit;
-      const dx = b.x - a.x, dy = b.y - a.y;
-      const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-      const nx = dx / dist, ny = dy / dist;
-      const x1 = a.x + nx * a.r, y1 = a.y + ny * a.r;
-      const x2 = b.x - nx * b.r, y2 = b.y - ny * b.r;
       const col = CAT_COLORS[e.category] || cFallback;
-      const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
-      // Gentle bow so parallel fan edges don't perfectly overlap.
-      const cpOff = Math.max(30, dist * 0.2);
-      const perpX = -(y2 - y1) / dist * cpOff * 0.08;
-      const perpY = (x2 - x1) / dist * cpOff * 0.08;
+      // Route down out of the source's bottom and into the target's top, doing
+      // the horizontal shift in the gap between them (cubic with vertical
+      // tangents at both ends). Edges stay vertical where they meet nodes, so
+      // they don't clip the neighbours sitting beside the source or target.
+      const sx = a.x, sy = a.y + a.r;
+      const tx = b.x, ty = b.y - b.r;
+      const midY = (sy + ty) / 2;
 
       // Three tiers: lit (focused edge), ghost (faded context), resting (calm
       // uniform bundle — no width-by-amount, no arrowheads, no labels).
       ctx.beginPath();
-      ctx.moveTo(x1, y1);
-      ctx.quadraticCurveTo(mx + perpX, my + perpY, x2, y2);
+      ctx.moveTo(sx, sy);
+      ctx.bezierCurveTo(sx, midY, tx, midY, tx, ty);
       if (ghost) { ctx.strokeStyle = cFallback; ctx.lineWidth = 1.2 * sc; ctx.globalAlpha = 0.06; }
       else if (isLit) { ctx.strokeStyle = col; ctx.lineWidth = e.width * 2; ctx.globalAlpha = 0.5; }
       else { ctx.strokeStyle = col; ctx.lineWidth = 1.6 * sc; ctx.globalAlpha = 0.22; }
@@ -327,13 +337,14 @@
       ctx.globalAlpha = 1;
 
       if (isLit) {
-        const angle = Math.atan2(y2 - (my + perpY), x2 - (mx + perpX));
+        // Edges enter the target vertically, so the arrowhead points straight down.
         const hl = 12 + e.width;
+        const angle = Math.PI / 2;
         ctx.beginPath();
-        ctx.moveTo(x2, y2);
-        ctx.lineTo(x2 - hl * Math.cos(angle - 0.35), y2 - hl * Math.sin(angle - 0.35));
-        ctx.moveTo(x2, y2);
-        ctx.lineTo(x2 - hl * Math.cos(angle + 0.35), y2 - hl * Math.sin(angle + 0.35));
+        ctx.moveTo(tx, ty);
+        ctx.lineTo(tx - hl * Math.cos(angle - 0.35), ty - hl * Math.sin(angle - 0.35));
+        ctx.moveTo(tx, ty);
+        ctx.lineTo(tx - hl * Math.cos(angle + 0.35), ty - hl * Math.sin(angle + 0.35));
         ctx.strokeStyle = col;
         ctx.lineWidth = Math.max(2, e.width);
         ctx.globalAlpha = 0.7;
@@ -345,8 +356,8 @@
           ctx.fillStyle = col;
           ctx.globalAlpha = 0.9;
           ctx.textAlign = 'center';
-          ctx.textBaseline = 'bottom';
-          ctx.fillText('$' + Math.round(e.amount).toLocaleString(), mx + perpX, my + perpY - 6);
+          ctx.textBaseline = 'middle';
+          ctx.fillText('$' + Math.round(e.amount).toLocaleString(), (sx + tx) / 2, midY);
           ctx.globalAlpha = 1;
         }
       }
