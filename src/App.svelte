@@ -20,6 +20,7 @@
   import { initAuth, auth } from './lib/sync.svelte.js';
   import { theme, toggleTheme } from './lib/theme.svelte.js';
   import { isMobile } from './lib/platform.js';
+  import { fly, fade } from 'svelte/transition';
   import { onMount } from 'svelte';
 
   const FIRST_RUN_KEY = 'flux_first_run_dismissed';
@@ -29,6 +30,7 @@
   let llmModalOpen = $state(false);
   let llmModalMode = $state('setup');
   let wizardModalOpen = $state(false);
+  let planSheetOpen = $state(false);
 
   function openLLM(mode) {
     llmModalMode = mode;
@@ -60,7 +62,23 @@
     { id: 'graph', label: 'Graph' },
   ];
 
+  // Inline stroke icons for the mobile bottom tab bar (SF-Symbol-ish, currentColor).
+  const TAB_ICONS = {
+    projection: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 2 5-6"/></svg>',
+    accounts: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-5 9 5"/><path d="M5 9v8M9 9v8M15 9v8M19 9v8"/><path d="M3 20h18"/></svg>',
+    flows: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4v13M4 7l3-3 3 3"/><path d="M17 20V7M14 17l3 3 3-3"/></svg>',
+    graph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="6" r="2"/><circle cx="18" cy="9" r="2"/><circle cx="9" cy="18" r="2"/><path d="M6.8 7L16 8.6M8.4 16.4L16.2 10.2M7.4 7.6L8.7 16"/></svg>',
+  };
+
+  // "Plan hub" icon for the center of the bottom bar (stacked layers = scenarios).
+  const PLAN_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l9 5-9 5-9-5 9-5z"/><path d="M3 12l9 5 9-5"/></svg>';
+
+  // Bottom-bar order: visualizations (Projection, Graph) left, tables (Accounts,
+  // Flows) right, with the plan button between them. Independent of desktop tab order.
+  const BOTTOM_NAV = ['projection', 'graph', 'accounts', 'flows'].map((id) => tabs.find((t) => t.id === id));
+
   const currentTab = $derived(tabs.find((t) => t.id === store.activeView) ?? tabs[0]);
+  const otherScenarios = $derived(store.scenarios.filter((s) => s.id !== store.activeScenarioId));
 
   function onKey(e) {
     if (e.key === 'Escape') {
@@ -69,6 +87,7 @@
       closeScheduleModal();
       menuOpen = false;
       scenarioMenuOpen = false;
+      planSheetOpen = false;
     }
   }
 
@@ -106,6 +125,7 @@
   <div class="topbar" class:is-mobile={isMobile}>
     {#if !isMobile}<h1>FLUX</h1>{/if}
     <div class="topbar-r">
+    {#if !isMobile}
     <div class="scenario-menu" id="scenarioMenuWrap">
       <button
         type="button"
@@ -162,6 +182,7 @@
         </div>
       {/if}
     </div>
+    {/if}
       <button
         type="button"
         class="theme-toggle"
@@ -169,12 +190,14 @@
         title={theme.mode === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
         aria-label="Toggle color theme"
       >{theme.mode === 'dark' ? '☀' : '☾'}</button>
+      {#if !isMobile}
       <button
         type="button"
         class="ai-btn"
         onclick={() => openLLM('edit')}
         title="Edit the active scenario in conversation"
       >✦ AI Edit</button>
+      {/if}
       <AccountMenu onOpenAuth={() => (authModalOpen = true)} />
     </div>
   </div>
@@ -189,42 +212,44 @@
 
   <KpiBanner />
 
-  <div class="tabs">
-    {#each tabs as tab}
+  {#if !isMobile}
+    <div class="tabs">
+      {#each tabs as tab}
+        <button
+          type="button"
+          class="tab"
+          class:active={store.activeView === tab.id}
+          onclick={() => (store.activeView = tab.id)}
+        >
+          {tab.label}
+        </button>
+      {/each}
+    </div>
+
+    <div class="tab-menu" id="tabMenuWrap">
       <button
         type="button"
-        class="tab"
-        class:active={store.activeView === tab.id}
-        onclick={() => (store.activeView = tab.id)}
+        class="tab-menu-trigger"
+        onclick={(e) => { e.stopPropagation(); menuOpen = !menuOpen; }}
       >
-        {tab.label}
+        <span>{currentTab.label}</span>
+        <span class="tm-caret">{menuOpen ? '▴' : '▾'}</span>
       </button>
-    {/each}
-  </div>
-
-  <div class="tab-menu" id="tabMenuWrap">
-    <button
-      type="button"
-      class="tab-menu-trigger"
-      onclick={(e) => { e.stopPropagation(); menuOpen = !menuOpen; }}
-    >
-      <span>{currentTab.label}</span>
-      <span class="tm-caret">{menuOpen ? '▴' : '▾'}</span>
-    </button>
-    {#if menuOpen}
-      <div class="tab-menu-list">
-        {#each tabs as tab}
-          <button
-            type="button"
-            class:active={store.activeView === tab.id}
-            onclick={() => selectTab(tab.id)}
-          >
-            {tab.label}
-          </button>
-        {/each}
-      </div>
-    {/if}
-  </div>
+      {#if menuOpen}
+        <div class="tab-menu-list">
+          {#each tabs as tab}
+            <button
+              type="button"
+              class:active={store.activeView === tab.id}
+              onclick={() => selectTab(tab.id)}
+            >
+              {tab.label}
+            </button>
+          {/each}
+        </div>
+      {/if}
+    </div>
+  {/if}
 
   {#if store.activeView === 'projection'}
     <Projection />
@@ -234,6 +259,86 @@
     <Flows />
   {:else if store.activeView === 'graph'}
     <Graph />
+  {/if}
+
+  {#if isMobile}
+    <nav class="bottom-nav">
+      {#each BOTTOM_NAV as tab, i}
+        {#if i === 2}
+          <button
+            type="button"
+            class="bn-center"
+            class:open={planSheetOpen}
+            onclick={() => (planSheetOpen = true)}
+            aria-label={`Scenario: ${store.activeScenario?.name ?? 'Baseline'}`}
+          >
+            <span class="bn-center-icon">{@html PLAN_ICON}</span>
+            <span class="bn-label">{store.activeScenario?.name ?? 'Baseline'}</span>
+          </button>
+        {/if}
+        <button
+          type="button"
+          class="bn-item"
+          class:active={store.activeView === tab.id}
+          onclick={() => (store.activeView = tab.id)}
+          aria-label={tab.label}
+          aria-current={store.activeView === tab.id ? 'page' : undefined}
+        >
+          <span class="bn-icon">{@html TAB_ICONS[tab.id]}</span>
+          <span class="bn-label">{tab.label}</span>
+        </button>
+      {/each}
+    </nav>
+  {/if}
+
+  {#if planSheetOpen}
+    <div
+      class="sheet-overlay"
+      transition:fade={{ duration: 150 }}
+      onclick={() => (planSheetOpen = false)}
+      role="presentation"
+    >
+      <div class="sheet" transition:fly={{ y: 320, duration: 240 }} onclick={(e) => e.stopPropagation()}>
+        <div class="sheet-grab"></div>
+
+        <div class="sheet-active">
+          <span class="sheet-active-dot"></span>
+          <span class="sheet-active-name">{store.activeScenario?.name ?? 'Baseline'}</span>
+          <span class="sheet-active-tag">active</span>
+          <button
+            type="button"
+            class="sheet-row-act"
+            onclick={(e) => onRenameScenario(e, store.activeScenario)}
+            aria-label="Rename active scenario"
+          >✎</button>
+        </div>
+
+        {#if otherScenarios.length}
+          <div class="sheet-sec-label">Switch to</div>
+          {#each otherScenarios as s (s.id)}
+            <div class="sheet-row">
+              <button
+                type="button"
+                class="sheet-row-pick"
+                onclick={() => { selectScenario(s.id); planSheetOpen = false; }}
+              >{s.name}</button>
+              <button type="button" class="sheet-row-act" onclick={(e) => onRenameScenario(e, s)} aria-label="Rename">✎</button>
+              {#if s.id !== 'baseline'}
+                <button type="button" class="sheet-row-act" onclick={(e) => onDeleteScenario(e, s)} aria-label="Delete">×</button>
+              {/if}
+            </div>
+          {/each}
+        {/if}
+
+        <div class="sheet-divider"></div>
+        <button type="button" class="sheet-action" onclick={() => { onNewScenario(); planSheetOpen = false; }}>+ Fork active</button>
+        <button type="button" class="sheet-action" onclick={() => { wizardModalOpen = true; planSheetOpen = false; }}>+ New from template</button>
+        <button type="button" class="sheet-action ai" onclick={() => { openLLM('setup'); planSheetOpen = false; }}>✦ Describe your finances</button>
+
+        <div class="sheet-divider"></div>
+        <button type="button" class="sheet-action ai primary" onclick={() => { openLLM('edit'); planSheetOpen = false; }}>✦ AI Edit this plan</button>
+      </div>
+    </div>
   {/if}
 </div>
 
