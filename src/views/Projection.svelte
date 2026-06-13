@@ -303,7 +303,7 @@
     </div>
 
     {#if store.simData}
-      <div class="proj-section">
+      <div class="proj-section nw-section">
         <div class="proj-section-head">
           <div class="dash-h" style="margin:0;">Net worth breakdown (end of period)</div>
         </div>
@@ -356,7 +356,7 @@
       </div>
     {/if}
 
-    <div class="proj-section">
+    <div class="proj-section sched-section">
       <div class="proj-section-head">
         <div class="dash-h" style="margin:0;">Scheduled flows</div>
         <div style="display:flex;gap:8px;align-items:center;">
@@ -452,5 +452,17 @@
     font-size: 10px;
     color: var(--t3);
     margin-left: auto;
+  }
+  /* Mobile: normal sections keep a 14px gutter, but the schedule and net-worth
+     sections go full-bleed (0 side padding) so their rows reach the screen edge.
+     This lives here (not global style.css) because the base .proj-section padding
+     is scoped and outranks global overrides on specificity. */
+  @media (max-width: 640px) {
+    .proj-section { padding: 14px; }
+    /* Schedule: zero the section padding (its header/cells are re-inset
+       individually) so the table reaches the edges. The net-worth section keeps
+       its 14px gutter — its title/labels stay inset and only the rows break out
+       (see .nw-section .nw-row in style.css). */
+    .sched-section { padding-left: 0; padding-right: 0; }
   }
 </style>

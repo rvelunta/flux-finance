@@ -316,7 +316,7 @@ input[type="number"]{width:110px;}input[type="date"]{width:145px;}select{cursor:
 .sb-filter:hover{border-color:var(--b2);}.sb-filter.active{border-color:var(--grn);color:var(--grn);background:var(--grn2);}
 .sched-flow-link{font-family:var(--mono);font-size:10px;padding:0;border:none;background:transparent;color:var(--blu);cursor:pointer;text-decoration:none;}
 .sched-flow-link:hover{background:transparent;text-decoration:underline;color:var(--blu);}
-.sched-tbl{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:10px;}.sched-tbl th{padding:5px 8px;text-align:right;font-size:8px;text-transform:uppercase;letter-spacing:0.4px;color:var(--t4);font-weight:500;border-bottom:1px solid var(--b1);position:sticky;top:0;background:var(--s1);}.sched-tbl th:first-child{text-align:left;}.sched-tbl td{padding:4px 8px;text-align:right;border-bottom:1px solid var(--b1);color:var(--t2);}.sched-tbl td:first-child{text-align:left;color:var(--t3);}.sched-tbl tr:hover{background:var(--s2);}
+.sched-tbl{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:11px;}.sched-tbl th{padding:4px 8px 6px;text-align:right;font-size:8px;text-transform:uppercase;letter-spacing:0.4px;color:var(--t4);font-weight:500;}.sched-tbl th:first-child{text-align:left;}.sched-tbl td{padding:4px 8px;text-align:right;border-bottom:1px solid var(--b1);color:var(--t2);}.sched-tbl td:first-child{text-align:left;color:var(--t3);}.sched-tbl tr:hover{background:var(--s2);}
 @media(max-width:800px){.accts-grid{grid-template-columns:1fr;}.dash-grid{grid-template-columns:1fr;}}
 
 /* Collapsible toolbar (toggle hidden on desktop) */
@@ -413,11 +413,25 @@ input[type="number"]{width:110px;}input[type="date"]{width:145px;}select{cursor:
      !important is needed because the <th>s have inline width styles that
      would otherwise beat these on specificity. */
   .sched-tbl{table-layout:fixed !important;width:100% !important;max-width:100%;}
-  .sched-tbl th,.sched-tbl td{padding:4px 5px;font-size:10px;overflow:hidden;text-overflow:ellipsis;}
-  .sched-tbl th:nth-child(1),.sched-tbl td:nth-child(1){width:36% !important;}
-  .sched-tbl th:nth-child(2),.sched-tbl td:nth-child(2){width:24% !important;}
-  .sched-tbl th:nth-child(3),.sched-tbl td:nth-child(3){width:20% !important;}
-  .sched-tbl th:nth-child(4),.sched-tbl td:nth-child(4){width:20% !important;}
+  .sched-tbl td{padding:4px 5px;font-size:11px;overflow:hidden;text-overflow:ellipsis;}
+  .sched-tbl th{padding:2px 5px 6px;font-size:9px;overflow:hidden;text-overflow:ellipsis;}
+  .sched-tbl th:nth-child(1),.sched-tbl td:nth-child(1){width:24% !important;}
+  .sched-tbl th:nth-child(2),.sched-tbl td:nth-child(2){width:22% !important;}
+  .sched-tbl th:nth-child(3),.sched-tbl td:nth-child(3){width:27% !important;}
+  .sched-tbl th:nth-child(4),.sched-tbl td:nth-child(4){width:27% !important;}
+  /* Schedule table spans the full screen width: drop the section's side padding
+     so rows/separators reach the edges, keep the headers inset, and pad the
+     table's edge cells so text stays off the screen edge. */
+  .sched-section{padding-left:0;padding-right:0;}
+  .sched-section .proj-section-head{padding-left:14px;padding-right:14px;}
+  .sched-section .proj-sched-head{padding-left:14px;padding-right:14px;}
+  .sched-section .sched-tbl td:first-child,.sched-section .sched-tbl th:first-child{padding-left:14px;}
+  .sched-section .sched-tbl td:last-child,.sched-section .sched-tbl th:last-child{padding-right:10px;}
+  /* Net-worth breakdown rows full-bleed: the section keeps its 14px gutter (so
+     the title/labels stay inset), and the rows break out by exactly that amount
+     so their separators reach the screen edges while content stays inset. The
+     -14px matches the section padding, so overflow:hidden doesn't clip it. */
+  .nw-section .nw-row{margin-left:-14px;margin-right:-14px;padding-left:14px;padding-right:14px;}
   .sched-occ-date{padding-left:14px !important;white-space:normal !important;}
   .sched-flow-link{font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:inline-block;max-width:100%;}
 

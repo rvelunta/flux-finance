@@ -125,16 +125,10 @@
         onclick={hasFlows ? () => toggleRow(r.label) : null}
         onkeydown={hasFlows ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleRow(r.label); } } : null}
       >
-        <td>
+        <td colspan="2">
           <span class="sched-toggle" class:open={expanded} class:hidden={!hasFlows}>▶</span>
           {r.label}
-        </td>
-        <td style="text-align:left;color:var(--t3);">
-          {#if !hasFlows}
-            <span style="color:var(--t4);">—</span>
-          {:else}
-            <span style="font-size:10px;">{r.occurrences.length} flow{r.occurrences.length === 1 ? '' : 's'}</span>
-          {/if}
+          {#if hasFlows}<span class="sched-flow-count">· {r.occurrences.length} flow{r.occurrences.length === 1 ? '' : 's'}</span>{/if}
         </td>
         <td>
           {#if r.total === 0}
@@ -147,8 +141,8 @@
       </tr>
       {#if hasFlows && expanded}
         {#each r.occurrences as o, i (o.flowId + '@' + fmtD(o.date) + '#' + i)}
-          <tr class="sched-occ-row">
-            <td class="sched-occ-date">{o.date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</td>
+          <tr class="sched-occ-row" class:last={i === r.occurrences.length - 1}>
+            <td class="sched-occ-date">{o.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</td>
             <td style="text-align:left;">
               <button type="button" class="sched-flow-link" onclick={(e) => { e.stopPropagation(); openFlowModal(o.flowId); }}>{o.name}</button>
               {#if o.overridden}<span class="sched-occ-ov" title="Overridden occurrence">●</span>{/if}
@@ -168,40 +162,45 @@
 </table>
 
 <style>
+  /* Rows styled to match the integrated "net worth breakdown" list: transparent
+     backgrounds and a single subtle separator per row — no boxy fills, top
+     borders, or inset colored left bars. */
   .sched-period-row td {
-    background: var(--s3);
+    background: transparent;
     color: var(--t1);
-    border-bottom: 1px solid var(--b2);
-    border-top: 1px solid var(--b2);
+    border-bottom: 1px solid var(--b1);
+    border-top: none;
+    padding-top: 6px;
+    padding-bottom: 6px;
   }
-  .sched-period-row td:first-child {
-    box-shadow: inset 3px 0 0 var(--b3);
-    color: var(--t1);
-  }
+  .sched-period-row td:first-child { box-shadow: none; color: var(--t1); white-space: nowrap; }
+  .sched-flow-count { color: var(--t4); font-size: 9px; margin-left: 4px; }
   .sched-period-row.clickable { cursor: pointer; user-select: none; }
-  .sched-period-row.clickable:hover td { background: var(--s4); }
-  .sched-period-row.expanded td:first-child { box-shadow: inset 3px 0 0 var(--grn); }
+  .sched-period-row.clickable:hover td { background: var(--s2); }
   .sched-toggle {
     display: inline-block;
     width: 10px;
     font-size: 9px;
     color: var(--t3);
-    margin-right: 6px;
+    margin-right: 8px;
     transition: transform 0.15s var(--ease);
   }
   .sched-toggle.open { transform: rotate(90deg); color: var(--grn); }
   .sched-toggle.hidden { visibility: hidden; }
+  /* Occurrence rows: lighter, indented children — same separator as every other
+     row so the whole table reads as one continuous list of lines. */
   .sched-occ-row td {
-    background: var(--s1);
+    background: transparent;
     color: var(--t2);
     font-size: 10px;
     padding-top: 3px;
     padding-bottom: 3px;
+    border-bottom: 1px solid var(--b1);
   }
+  .sched-occ-row td:first-child { box-shadow: none; }
   .sched-occ-row:hover td { background: var(--s2); }
-  .sched-occ-row td:first-child { box-shadow: inset 3px 0 0 var(--b1); }
   .sched-occ-date {
-    padding-left: 28px !important;
+    padding-left: 20px !important;
     color: var(--t3);
     white-space: nowrap;
   }

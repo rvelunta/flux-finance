@@ -1,9 +1,16 @@
 # Changelog
 
-## [Unreleased] — `feature/ai-proxy` branch
+## 3.15.0 — 2026-06-13
+
+The start of the mobile-native UI pass — same Svelte source, mobile-specific layout via the `isMobile` build flag.
 
 ### Added
-- **Two build targets from one source tree** — `npm run build` builds the desktop web/PWA app (`dist/`, `base: /`); `npm run build:mobile` builds the Capacitor target (`dist-mobile/`, `base: ./`), selected via Vite `--mode`. The active target is exposed as the compile-time constant `__PLATFORM__` (`src/lib/platform.js` → `isMobile`/`isWeb`) so layout/UX can diverge per platform. First divergence: the topbar drops the `FLUX` wordmark and spreads its controls evenly on mobile, keeps the wordmark + grouped cluster on web. Convenience scripts `dev:mobile`, `sync:ios`, `run:ios`. See [MOBILE.md](MOBILE.md).
+- **Mobile bottom tab bar.** On the mobile build the top tab strip / dropdown is replaced by a fixed iOS-style bottom tab bar — visualizations on the left (Projection · Graph), tables on the right (Accounts · Flows), with inline stroke icons and `safe-area-inset` handling. The desktop/web build keeps its top tabs.
+- **Plan-hub bottom sheet.** A prominent center button in the bottom bar shows the active scenario and opens a bottom sheet that consolidates everything about "your plan": switch scenarios (rename/delete), create (Fork / New from template / ✦ Describe your finances), and ✦ AI Edit. The scenario menu and AI Edit button were removed from the mobile topbar accordingly.
+- **Two build targets from one source tree** — `npm run build` builds the desktop web/PWA app (`dist/`, `base: /`); `npm run build:mobile` builds the Capacitor target (`dist-mobile/`, `base: ./`), selected via Vite `--mode`. The active target is exposed as the compile-time constant `__PLATFORM__` (`src/lib/platform.js` → `isMobile`/`isWeb`) so layout/UX can diverge per platform. Convenience scripts `dev:mobile`, `sync:ios`, `run:ios`. See [MOBILE.md](MOBILE.md).
+
+### Changed
+- **Schedule + net-worth tables redesigned to read as one integrated list on mobile.** The Scheduled-flows table dropped its boxy fills, colored left-bars, and sticky grid header in favor of transparent rows with a separator on every row (including expanded occurrences), matching the Net-worth breakdown. Period headers span the date/flows columns (e.g. `Jul 2026 · 17 flows`); columns were rebalanced so balances no longer truncate; the weekday was dropped from per-flow dates. Both the schedule and the breakdown rows now span the full screen width on mobile.
 
 ## 3.14.0 — 2026-06-11
 
