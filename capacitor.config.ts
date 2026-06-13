@@ -4,7 +4,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 const config: CapacitorConfig = {
   appId: 'com.rolandvelunta.flux',
   appName: 'FLUX',
-  webDir: 'dist', // Vite build output (vite.config.js: build.outDir = ../dist)
+  webDir: 'dist-mobile', // mobile-target Vite build (npm run build:mobile → ../dist-mobile)
 };
 
 export default config;

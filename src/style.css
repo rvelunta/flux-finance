@@ -26,8 +26,10 @@ body{font-family:var(--sans);background:var(--bg);color:var(--t1);min-height:100
 .chrome{display:flex;flex-direction:column;height:100vh;height:100dvh;}
 .topbar{padding:14px 28px;background:var(--s1);border-bottom:1px solid var(--b1);display:flex;justify-content:space-between;align-items:center;}
 .topbar h1{font-family:var(--mono);font-size:15px;font-weight:600;letter-spacing:-0.3px;}
-.topbar h1 em{font-style:normal;color:var(--t4);font-weight:300;}
 .topbar-r{display:flex;gap:10px;align-items:center;min-width:0;}
+/* Mobile build: no brand, controls spread evenly across the full ribbon. */
+.topbar.is-mobile .topbar-r{flex:1;justify-content:space-between;}
+.topbar.is-mobile .scenario-menu-list{left:0;right:auto;}
 .scenario-menu{position:relative;min-width:0;flex:0 1 auto;}
 .scenario-menu-trigger{display:inline-flex;align-items:center;gap:8px;font-family:var(--mono);font-size:11px;padding:5px 10px;background:var(--s2);border:1px solid var(--b1);border-radius:4px;color:var(--t2);cursor:pointer;max-width:100%;}
 .scenario-menu-trigger:hover{background:var(--s3);border-color:var(--b2);}

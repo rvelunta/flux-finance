@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased] — `feature/ai-proxy` branch
+
+### Added
+- **Two build targets from one source tree** — `npm run build` builds the desktop web/PWA app (`dist/`, `base: /`); `npm run build:mobile` builds the Capacitor target (`dist-mobile/`, `base: ./`), selected via Vite `--mode`. The active target is exposed as the compile-time constant `__PLATFORM__` (`src/lib/platform.js` → `isMobile`/`isWeb`) so layout/UX can diverge per platform. First divergence: the topbar drops the `FLUX` wordmark and spreads its controls evenly on mobile, keeps the wordmark + grouped cluster on web. Convenience scripts `dev:mobile`, `sync:ios`, `run:ios`. See [MOBILE.md](MOBILE.md).
+
 ## 3.14.0 — 2026-06-11
 
 ### Added
