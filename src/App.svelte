@@ -18,6 +18,8 @@
   import LLMInputModal from './components/LLMInputModal.svelte';
   import WizardModal from './components/WizardModal.svelte';
   import { initAuth, auth } from './lib/sync.svelte.js';
+  import { theme, toggleTheme } from './lib/theme.svelte.js';
+  import { isMobile } from './lib/platform.js';
   import { onMount } from 'svelte';
 
   const FIRST_RUN_KEY = 'flux_first_run_dismissed';
@@ -101,8 +103,8 @@
 <svelte:document onclick={onDocClick} />
 
 <div class="chrome">
-  <div class="topbar">
-    <h1>FLUX</h1>
+  <div class="topbar" class:is-mobile={isMobile}>
+    {#if !isMobile}<h1>FLUX</h1>{/if}
     <div class="topbar-r">
     <div class="scenario-menu" id="scenarioMenuWrap">
       <button
@@ -160,6 +162,13 @@
         </div>
       {/if}
     </div>
+      <button
+        type="button"
+        class="theme-toggle"
+        onclick={toggleTheme}
+        title={theme.mode === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+        aria-label="Toggle color theme"
+      >{theme.mode === 'dark' ? '☀' : '☾'}</button>
       <button
         type="button"
         class="ai-btn"
@@ -241,7 +250,11 @@
   <AuthModal onClose={() => (authModalOpen = false)} />
 {/if}
 {#if llmModalOpen}
-  <LLMInputModal onClose={() => (llmModalOpen = false)} mode={llmModalMode} />
+  <LLMInputModal
+    onClose={() => (llmModalOpen = false)}
+    mode={llmModalMode}
+    onRequestSignIn={() => (authModalOpen = true)}
+  />
 {/if}
 {#if wizardModalOpen}
   <WizardModal onClose={() => (wizardModalOpen = false)} />

@@ -1,6 +1,7 @@
 <script>
   import { onDestroy } from 'svelte';
   import { fmtShort } from '../lib/format.js';
+  import { theme, cssVar } from '../lib/theme.svelte.js';
 
   let {
     snapshots,
@@ -18,6 +19,16 @@
   $effect(() => {
     if (!canvas || !snapshots?.length || !primaryLine) return;
     if (chart) chart.destroy();
+
+    // Theme-aware colors. Touch theme.mode so the chart rebuilds on toggle.
+    theme.mode;
+    const cGrid = cssVar('--b1') + '66';
+    const cTick = cssVar('--t4');
+    const cLegend = cssVar('--t3');
+    const cTipBg = cssVar('--s2');
+    const cTipBorder = cssVar('--b1');
+    const cGrn = cssVar('--grn');
+    const cRed = cssVar('--red');
 
     const labels = snapshots.map((s) => {
       if (resolution === 'daily') {
@@ -85,8 +96,8 @@
         type: 'bar',
         label: 'Inflow',
         data: inflows,
-        backgroundColor: '#2dd4a822',
-        borderColor: '#2dd4a866',
+        backgroundColor: cGrn + '22',
+        borderColor: cGrn + '66',
         borderWidth: 1,
         borderRadius: 2,
         yAxisID: 'y1',
@@ -96,8 +107,8 @@
         type: 'bar',
         label: 'Outflow',
         data: outflows.map((v) => -v),
-        backgroundColor: '#ef646122',
-        borderColor: '#ef646166',
+        backgroundColor: cRed + '22',
+        borderColor: cRed + '66',
         borderWidth: 1,
         borderRadius: 2,
         yAxisID: 'y1',
@@ -107,14 +118,14 @@
 
     const scales = {
       x: {
-        grid: { color: 'rgba(42,48,64,0.4)', drawBorder: false },
-        ticks: { color: '#4a5268', font: { family: "'IBM Plex Mono'", size: 9 }, maxTicksLimit: 10 },
+        grid: { color: cGrid, drawBorder: false },
+        ticks: { color: cTick, font: { family: "'IBM Plex Mono'", size: 9 }, maxTicksLimit: 10 },
       },
       y: {
         position: 'left',
-        grid: { color: 'rgba(42,48,64,0.4)', drawBorder: false },
+        grid: { color: cGrid, drawBorder: false },
         ticks: {
-          color: '#4a5268',
+          color: cTick,
           font: { family: "'IBM Plex Mono'", size: 9 },
           callback: (v) => fmtShort(v),
         },
@@ -128,9 +139,9 @@
         position: 'right',
         min: -span,
         max: span,
-        grid: { drawOnChartArea: false, color: 'rgba(42,48,64,0.4)' },
+        grid: { drawOnChartArea: false, color: cGrid },
         ticks: {
-          color: '#4a5268',
+          color: cTick,
           font: { family: "'IBM Plex Mono'", size: 9 },
           callback: (v) => fmtShort(v),
         },
@@ -148,16 +159,18 @@
           legend: {
             position: 'bottom',
             labels: {
-              color: '#6a7490',
+              color: cLegend,
               font: { family: "'IBM Plex Mono'", size: 9 },
               padding: 10,
               usePointStyle: true,
             },
           },
           tooltip: {
-            backgroundColor: '#161922',
-            borderColor: '#2a3040',
+            backgroundColor: cTipBg,
+            borderColor: cTipBorder,
             borderWidth: 1,
+            titleColor: cssVar('--t1'),
+            bodyColor: cssVar('--t2'),
             titleFont: { family: "'IBM Plex Mono'", size: 10 },
             bodyFont: { family: "'IBM Plex Mono'", size: 10 },
             padding: 8,

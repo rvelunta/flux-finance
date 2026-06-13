@@ -28,21 +28,36 @@ function stubAnthropicAgentToolset() {
   };
 }
 
-export default defineConfig({
-  root: 'src',
-  envDir: '..',
-  plugins: [svelte(), stubAnthropicAgentToolset()],
-  resolve: {
-    alias: {
-      'node:crypto': fileURLToPath(new URL('./src/lib/shims/node-crypto.js', import.meta.url)),
+// Two build targets from one source tree, selected by Vite `--mode`:
+//   default / --mode web    → the desktop web/PWA app  (npm run dev | build → dist/)
+//   --mode mobile           → the Capacitor native app (npm run dev:mobile | build:mobile → dist-mobile/)
+// The active target is exposed to the app as the compile-time constant
+// `__PLATFORM__` (see src/lib/platform.js); statically-false branches are
+// tree-shaken out, so each build only ships its own platform's layout code.
+export default defineConfig(({ mode }) => {
+  const isMobile = mode === 'mobile';
+  return {
+    root: 'src',
+    envDir: '..',
+    // Mobile needs relative asset URLs under Capacitor's native WebView origin
+    // (capacitor://localhost / file://); the web app is served from a root '/'.
+    base: isMobile ? './' : '/',
+    define: {
+      __PLATFORM__: JSON.stringify(isMobile ? 'mobile' : 'web'),
     },
-  },
-  build: {
-    outDir: '../dist',
-    emptyOutDir: true,
-  },
-  server: {
-    port: 3000,
-    open: true,
-  },
+    plugins: [svelte(), stubAnthropicAgentToolset()],
+    resolve: {
+      alias: {
+        'node:crypto': fileURLToPath(new URL('./src/lib/shims/node-crypto.js', import.meta.url)),
+      },
+    },
+    build: {
+      outDir: isMobile ? '../dist-mobile' : '../dist',
+      emptyOutDir: true,
+    },
+    server: {
+      port: 3000,
+      open: true,
+    },
+  };
 });

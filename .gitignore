@@ -1,5 +1,6 @@
 node_modules/
 dist/
+dist-mobile/
 mobile-shots/
 .DS_Store
 *.local

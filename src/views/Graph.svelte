@@ -3,6 +3,7 @@
   import { store } from '../lib/state.svelte.js';
   import { ACCT_COLORS, CAT_COLORS } from '../lib/constants.js';
   import { toMonthlyAmt } from '../lib/format.js';
+  import { cssVar } from '../lib/theme.svelte.js';
 
   let canvas;
   let tooltip;
@@ -155,6 +156,12 @@
 
   function drawGraph(ctx, W, H) {
     ctx.clearRect(0, 0, W, H);
+    // Theme-aware structural colors (re-read each frame so toggling is live).
+    const cNodeFill = cssVar('--s1');
+    const cLabel = cssVar('--t2');
+    const cLabelExt = cssVar('--t4');
+    const cFallback = cssVar('--t3');
+    const cEquity = cssVar('--pur');
     const nodeMap = {};
     graphNodes.forEach((n) => { nodeMap[n.id] = n; });
 
@@ -181,7 +188,7 @@
       ctx.setLineDash([8, 6]);
       ctx.moveTo(dNode.x, dNode.y);
       ctx.lineTo(aNode.x, aNode.y);
-      ctx.strokeStyle = '#9b8afb';
+      ctx.strokeStyle = cEquity;
       ctx.lineWidth = 2;
       ctx.globalAlpha = 0.2;
       ctx.stroke();
@@ -193,7 +200,7 @@
       const aBal = store.accounts.find((a) => a.id === debt.linkedTo)?.balance || 0;
       const equity = aBal + dBal;
       ctx.font = `500 ${Math.round(16 * sc)}px "IBM Plex Mono"`;
-      ctx.fillStyle = '#9b8afb';
+      ctx.fillStyle = cEquity;
       ctx.globalAlpha = 0.5;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'bottom';
@@ -213,7 +220,7 @@
       const nx = dx / dist, ny = dy / dist;
       const x1 = a.x + nx * a.r, y1 = a.y + ny * a.r;
       const x2 = b.x - nx * b.r, y2 = b.y - ny * b.r;
-      const col = CAT_COLORS[e.category] || '#6a7490';
+      const col = CAT_COLORS[e.category] || cFallback;
       const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
       const cpOff = Math.max(30, dist * 0.2);
       const perpX = -(y2 - y1) / dist * cpOff * 0.15;
@@ -252,7 +259,7 @@
     });
 
     graphNodes.forEach((n) => {
-      const col = ACCT_COLORS[n.type] || '#6a7490';
+      const col = ACCT_COLORS[n.type] || cFallback;
       const isExt = n.external;
       ctx.beginPath();
       ctx.arc(n.x, n.y, n.r + 5, 0, Math.PI * 2);
@@ -263,7 +270,7 @@
 
       ctx.beginPath();
       ctx.arc(n.x, n.y, n.r, 0, Math.PI * 2);
-      ctx.fillStyle = '#0f1117';
+      ctx.fillStyle = cNodeFill;
       ctx.fill();
       ctx.lineWidth = isExt ? 1.5 : 2.5;
       ctx.strokeStyle = col;
@@ -285,7 +292,7 @@
       }
 
       ctx.font = `500 ${Math.round((isExt ? 16 : 20) * sc)}px "IBM Plex Mono"`;
-      ctx.fillStyle = isExt ? '#4a5268' : '#a0a8be';
+      ctx.fillStyle = isExt ? cLabelExt : cLabel;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'top';
       const label = n.label.length > 14 ? n.label.slice(0, 13) + '…' : n.label;
@@ -311,11 +318,11 @@
     const bal = node.external
       ? (store.simData ? store.simData.finalBalances[node.id] || 0 : 0)
       : node.balance;
-    let html = `<div style="font-weight:600;margin-bottom:4px;color:${ACCT_COLORS[node.type] || '#a0a8be'}">${node.label}</div>`;
-    if (!node.external) html += `<div style="color:#a0a8be">Balance: <span style="color:#2dd4a8">$${(bal || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</span></div>`;
-    else if (bal !== 0) html += `<div style="color:#a0a8be">Cumulative: <span style="color:${bal > 0 ? '#2dd4a8' : '#ef6461'}">$${Math.abs(bal || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</span></div>`;
-    if (incoming.length) html += `<div style="margin-top:4px;color:#6a7490">In: ${incoming.map((ed) => '$' + Math.round(ed.amount).toLocaleString() + '/mo').join(', ')}</div>`;
-    if (outgoing.length) html += `<div style="color:#6a7490">Out: ${outgoing.map((ed) => '$' + Math.round(ed.amount).toLocaleString() + '/mo').join(', ')}</div>`;
+    let html = `<div style="font-weight:600;margin-bottom:4px;color:${ACCT_COLORS[node.type] || 'var(--t2)'}">${node.label}</div>`;
+    if (!node.external) html += `<div style="color:var(--t2)">Balance: <span style="color:var(--grn)">$${(bal || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</span></div>`;
+    else if (bal !== 0) html += `<div style="color:var(--t2)">Cumulative: <span style="color:${bal > 0 ? 'var(--grn)' : 'var(--red)'}">$${Math.abs(bal || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</span></div>`;
+    if (incoming.length) html += `<div style="margin-top:4px;color:var(--t3)">In: ${incoming.map((ed) => '$' + Math.round(ed.amount).toLocaleString() + '/mo').join(', ')}</div>`;
+    if (outgoing.length) html += `<div style="color:var(--t3)">Out: ${outgoing.map((ed) => '$' + Math.round(ed.amount).toLocaleString() + '/mo').join(', ')}</div>`;
     tooltip.innerHTML = html;
     tooltip.style.display = 'block';
     // Keep tooltip on screen — flip to the left/above edge if needed.

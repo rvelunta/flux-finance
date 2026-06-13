@@ -5,6 +5,11 @@
   import { fmtD, parseDate, daysBetween } from '../lib/dates.js';
   import BalanceChart from '../components/BalanceChart.svelte';
   import ScheduleTable from '../components/ScheduleTable.svelte';
+  import { theme, cssVar } from '../lib/theme.svelte.js';
+
+  // Net Worth lines track the primary text color so they stay visible in
+  // both themes; reading theme.mode keeps the derived colors reactive.
+  const nwColor = $derived((theme.mode, cssVar('--t1')));
 
   let pickerOpen = $state(false);
   let scheduleTables = $state({});
@@ -147,7 +152,7 @@
       return {
         name: 'Net Worth',
         data: chartSnapshots.map((s) => ids.reduce((sum, id) => sum + (s.balances[id] || 0), 0)),
-        color: '#e8ecf4',
+        color: nwColor,
       };
     }
     if (!selectedAccount) return null;
@@ -169,7 +174,7 @@
           id: cs.id + ':nw',
           name: `Net Worth · ${cs.name}`,
           data: snaps.map((s) => ids.reduce((sum, aid) => sum + (s.balances[aid] || 0), 0)),
-          color: '#e8ecf4',
+          color: nwColor,
           dash,
         });
       } else if (selectedAccount && cs.internalIds.has(selectedAccount.id)) {
@@ -259,7 +264,7 @@
                   onkeydown={(e) => e.key === 'Enter' && selectAcct(NW_ID)}
                   style="display:flex;align-items:center;gap:8px;padding:5px 12px;cursor:pointer;font-family:var(--mono);font-size:11px;color:{isNW ? 'var(--t1)' : 'var(--t3)'};background:{isNW ? 'var(--s2)' : 'transparent'};font-weight:{isNW ? '600' : '400'};"
                 >
-                  <span style="width:8px;height:8px;border-radius:50%;background:#e8ecf4;flex-shrink:0;"></span>
+                  <span style="width:8px;height:8px;border-radius:50%;background:var(--t1);flex-shrink:0;"></span>
                   Net Worth
                   <span style="margin-left:auto;font-size:9px;color:var(--t4);">all internal</span>
                 </div>

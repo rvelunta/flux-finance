@@ -6,9 +6,12 @@
   } from '../lib/state.svelte.js';
   import { ai, sendUserTurn, startConversation, isAIConfigured } from '../lib/ai/client.svelte.js';
   import { convertToScenario } from '../lib/ai/schema.js';
+  import { auth } from '../lib/sync.svelte.js';
   import { fmt2 } from '../lib/format.js';
 
-  let { onClose, mode = 'setup' } = $props();
+  let { onClose, mode = 'setup', onRequestSignIn } = $props();
+
+  const needsSignIn = $derived(isAIConfigured && !auth.user);
 
   // ---- Local UI state -------------------------------------------------------
   let step = $state('chat');
@@ -208,34 +211,31 @@
     <h3>{mode === 'edit' ? 'Edit with AI' : 'Describe your finances'}</h3>
 
     {#if !isAIConfigured}
-      <div class="llm-setup">
-        <p class="llm-setup-lead">
-          The AI editor needs an Anthropic API key to talk to Claude. Your finances are sent to Anthropic's API during the conversation; everything else stays on your device.
-        </p>
-        <ol class="llm-setup-steps">
-          <li>
-            Create a key at <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener noreferrer">console.anthropic.com/settings/keys</a> (free tier works). Copy it — Anthropic only shows the full key once.
-          </li>
-          <li>
-            Add it to <code>.env.local</code> at the project root:
-            <pre>VITE_ANTHROPIC_API_KEY=sk-ant-api03-...</pre>
-          </li>
-          <li>
-            Restart the dev server (<code>npm run dev</code>). Vite only reads env files at startup.
-          </li>
-        </ol>
-        <p class="llm-setup-foot">
-          Heads-up: in this prototype the key is bundled into the browser app. For shipping, route calls through a small proxy that holds the key server-side.
-        </p>
+      <div class="llm-warn">
+        The AI assistant needs the Supabase backend configured (<code>VITE_SUPABASE_URL</code> in <code>.env.local</code>) — it routes through a server-side proxy that holds the Anthropic key.
       </div>
       <div class="mf"><button onclick={onClose}>Close</button></div>
+
+    {:else if needsSignIn}
+      <div class="llm-setup">
+        <p class="llm-setup-lead">
+          The AI assistant runs in the cloud, so it needs an account. Sign in (or create one) to use it.
+        </p>
+        <p class="llm-setup-foot">
+          Your scenario data still stays on your device — only the conversation is sent to the AI, through your own backend proxy (the Anthropic key is never exposed to the app).
+        </p>
+        <div class="mf">
+          <button onclick={onClose}>Cancel</button>
+          <button class="pri" onclick={() => { onClose(); onRequestSignIn?.(); }}>Sign in</button>
+        </div>
+      </div>
 
     {:else if step === 'chat'}
       <p class="llm-subhead">
         {#if mode === 'edit'}
-          Conversational edits via Claude Haiku 4.5. Your current scenario is sent to the model so it can refer to your accounts and flows by name.
+          Conversational edits via Claude Haiku 4.5. Your current scenario is sent to the model (through your backend proxy) so it can refer to your accounts and flows by name.
         {:else}
-          Conversational setup using Claude Haiku 4.5. Your responses are sent to Anthropic's API. The generated scenario lives entirely on your device.
+          Conversational setup via Claude Haiku 4.5, routed through your backend proxy. The generated scenario lives entirely on your device.
         {/if}
       </p>
 

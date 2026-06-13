@@ -1,0 +1,8 @@
+project_id = "jsjtubtoggnbvcajdzwf"
+
+# Disable the platform's gateway JWT check for the proxy. The function does its
+# own auth via supabase.auth.getUser(jwt), which correctly handles the project's
+# (new-format) signing keys and returns CORS headers on every response — the
+# gateway check was both redundant and breaking CORS on its 401s.
+[functions.anthropic-proxy]
+verify_jwt = false

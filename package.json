@@ -1,22 +1,31 @@
 {
   "name": "flux",
-  "version": "3.13.0",
+  "version": "3.14.0",
   "description": "FLUX — personal finance flow-account simulation engine",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite",
     "dev:lan": "vite --host",
+    "dev:mobile": "vite --mode mobile",
     "build": "vite build",
+    "build:mobile": "vite build --mode mobile",
+    "sync:ios": "npm run build:mobile && cap sync ios",
+    "run:ios": "npm run build:mobile && cap sync ios && cap run ios",
     "preview": "vite preview",
     "shots": "node scripts/mobile-shots.mjs"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.3.4",
     "playwright": "^1.60.0",
+    "typescript": "^6.0.3",
     "vite": "^6.0.0"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.99.0",
+    "@capacitor/core": "^8.3.4",
+    "@capacitor/ios": "^8.3.4",
+    "@capacitor/preferences": "^8.0.1",
     "@supabase/supabase-js": "^2.106.2",
     "@sveltejs/vite-plugin-svelte": "^5.1.1",
     "chart.js": "^4.4.1",
