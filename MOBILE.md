@@ -3,8 +3,9 @@
 FLUX ships as a web app; the mobile app is the **same** Svelte/Vite build wrapped
 with [Capacitor](https://capacitorjs.com/) in a native WebView. No native rewrite.
 
-This file is the runbook. Work lives on the `feature/ai-proxy` branch until the
-mobile path is validated, then merges to `main`.
+This file is the runbook. The web-side prep (Phase 1) is merged to `main`; the
+native build (Phase 2) lives on the `feature/ios-native` branch until the mobile
+path is validated, then merges to `main`.
 
 ---
 

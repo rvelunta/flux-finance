@@ -18,4 +18,4 @@ Capacitor-wrap the same Svelte codebase for iOS/Android. No native rewrite plann
 
 Architectural choices in v3 should keep the Capacitor path open — avoid server-backend coupling and browser APIs iOS Safari doesn't support. (Two server dependencies were ultimately accepted: Supabase auth/sync, and the `anthropic-proxy` Edge Function that keeps the AI key off the client. Both are reachable from a WebView over HTTPS, so the Capacitor path stays open; the app remains fully usable offline and signed-out apart from the AI assistant.)
 
-Migration runbook and status: see [MOBILE.md](MOBILE.md). Phase 1 (web-side Capacitor prep) is done on the `feature/ai-proxy` branch; native scaffolding (Phase 2) is pending a local Xcode / Android Studio install.
+Migration runbook and status: see [MOBILE.md](MOBILE.md). Phase 1 (web-side Capacitor prep) is merged to `main`. Phase 2 (native build) is in progress on the `feature/ios-native` branch — the iOS Xcode project is scaffolded and runs in the Simulator; physical-device deployment is still being validated. Android scaffolding is pending an Android Studio install.
