@@ -3,18 +3,18 @@
   import { store } from '../lib/state.svelte.js';
   import { ACCT_COLORS, CAT_COLORS } from '../lib/constants.js';
   import { toMonthlyAmt } from '../lib/format.js';
-  import { cssVar } from '../lib/theme.svelte.js';
+  import { theme, cssVar } from '../lib/theme.svelte.js';
 
   let canvas;
   let tooltip;
   let showMode = $state('all');
   let showLabels = $state(true);
   let ctrlOpen = $state(false);
+  let selectedId = $state(null);   // focused node id, or null for the resting overview
 
   let graphNodes = [];
   let graphEdges = [];
   let graphAnim = null;
-  let graphDrag = null;
   let graphInited = false;
   let currentDpr = 1;
   let currentScale = 1;
@@ -34,45 +34,77 @@
     return 4;                                        // Expenses (external)
   }
 
-  // Vertical layered layout: each non-empty layer becomes a horizontal band,
-  // stacked top → bottom, so the user scrolls down through the layers. Nodes are
-  // arranged in a centered grid within their band; the canvas grows as tall as
-  // needed and the wrap scrolls. Returns node positions, per-band metrics (for
-  // labels + Y clamping), and the total canvas height.
-  function buildVerticalLayout(nodes, W, rInt, sc) {
+  // Layered layout: each non-empty layer is a horizontal band, stacked top →
+  // bottom. Within a band the node order is refined by a barycenter pass — each
+  // node drifts toward the average X of the nodes it connects to in adjacent
+  // bands — which lines connected nodes up vertically and reduces crossings.
+  // Returns node positions, per-band metrics, and the total canvas height.
+  function buildLayeredLayout(nodes, edges, W, rNode, sc) {
     const layers = LAYER_LABELS.map(() => []);
     nodes.forEach((n) => { layers[n.layer].push(n); });
+
+    const adj = {};
+    nodes.forEach((n) => { adj[n.id] = []; });
+    edges.forEach((e) => {
+      if (adj[e.from] && adj[e.to]) { adj[e.from].push(e.to); adj[e.to].push(e.from); }
+    });
+
     const padX = W * 0.06;
     const usableW = W - padX * 2;
-    const labelH = 26 * sc;             // header strip for the layer label
-    const padV = 76 * sc;              // gap below each band's grid
-    const cellW = rInt * 2 + 52 * sc;   // horizontal slot → ~3 nodes per row on phones
-    const cellH = rInt * 2 + 150 * sc;  // tall row → generous vertical spacing
-    const positions = {};
+    const labelH = 26 * sc;
+    const padV = 76 * sc;
+    const cellW = rNode * 2 + 52 * sc;
+    const cellH = rNode * 2 + 150 * sc;
+    const perRow = Math.max(1, Math.floor(usableW / cellW));
+
+    // Band geometry — one band per non-empty layer, indexed by layer number.
     const bands = [];
     let y = 28 * sc;
     layers.forEach((layer, li) => {
-      if (!layer.length) return;
-      const perRow = Math.max(1, Math.floor(usableW / cellW));
+      if (!layer.length) { bands[li] = null; return; }
       const rows = Math.ceil(layer.length / perRow);
       const top = y;
       const gridTop = top + labelH;
       const gridH = rows * cellH;
-      layer.forEach((n, ni) => {
-        const row = Math.floor(ni / perRow);
-        const col = ni % perRow;
-        const inRow = Math.min(perRow, layer.length - row * perRow);
-        const slotW = usableW / inRow;
-        positions[n.id] = {
-          x: padX + slotW * (col + 0.5),
-          y: gridTop + cellH * (row + 0.5),
-        };
-      });
       const bottom = gridTop + gridH + padV;
-      bands.push({ layer: li, top, bottom, labelY: top + 14 * sc, nodeTop: gridTop, nodeBottom: gridTop + gridH });
+      bands[li] = { layer: li, top, bottom, labelY: top + 14 * sc, nodeTop: gridTop, nodeBottom: gridTop + gridH, gridTop };
       y = bottom;
     });
-    return { positions, bands, totalH: y + 28 * sc };
+    const totalH = y + 28 * sc;
+
+    const positions = {};
+    const place = (list, band) => {
+      list.forEach((n, i) => {
+        const row = Math.floor(i / perRow);
+        const col = i % perRow;
+        const inRow = Math.min(perRow, list.length - row * perRow);
+        const slotW = usableW / inRow;
+        positions[n.id] = { x: padX + slotW * (col + 0.5), y: band.gridTop + cellH * (row + 0.5) };
+      });
+    };
+
+    // Initial placement in input order, then a few barycenter ordering sweeps.
+    const order = layers.map((l) => l.slice());
+    order.forEach((list, li) => { if (list.length) place(list, bands[li]); });
+    for (let pass = 0; pass < 5; pass++) {
+      const idxs = order.map((_, i) => i);
+      const seq = pass % 2 === 0 ? idxs : idxs.reverse();
+      for (const li of seq) {
+        const list = order[li];
+        if (!list || list.length <= 1) continue;
+        const tx = {};
+        list.forEach((n) => {
+          const nb = adj[n.id];
+          tx[n.id] = nb.length
+            ? nb.reduce((s, id) => s + (positions[id] ? positions[id].x : positions[n.id].x), 0) / nb.length
+            : positions[n.id].x;
+        });
+        list.sort((a, b) => tx[a.id] - tx[b.id]);
+        place(list, bands[li]);
+      }
+    }
+
+    return { positions, bands: bands.filter(Boolean), totalH };
   }
 
   function initGraph(forceReset = false) {
@@ -101,7 +133,10 @@
         .filter((a) => !a.external || referencedIds.has(a.id))
         .map((a) => ({ id: a.id, label: a.name, type: a.type, balance: a.balance, external: !!a.external, layer: getLayer(a) }));
 
-      const layout = buildVerticalLayout(nodeList, W, rNode, sc);
+      const nodeIds = new Set(nodeList.map((n) => n.id));
+      const validFlows = activeFlows.filter((f) => nodeIds.has(f.from) && nodeIds.has(f.to));
+
+      const layout = buildLayeredLayout(nodeList, validFlows, W, rNode, sc);
       graphLayout = layout;
       const totalH = layout.totalH;
 
@@ -118,11 +153,14 @@
         const existing = (!forceReset && graphInited) ? graphNodes.find((gn) => gn.id === n.id) : null;
         const p = layout.positions[n.id] || { x: W / 2, y: totalH / 2 };
         const band = bandByLayer[n.layer];
+        // Ease-in: nodes start at the horizontal centre and slide out to their
+        // computed X; a re-layout instead eases from the node's current spot.
+        const sx = existing ? existing.x : W / 2;
+        const sy = existing ? existing.y : p.y;
         return {
           ...n,
-          x: existing ? existing.x : p.x,
-          y: existing ? existing.y : p.y,
-          vx: 0, vy: 0,
+          x: sx, y: sy,
+          sx, sy, tx: p.x, ty: p.y,
           r: rNode,
           bandTop: band ? band.nodeTop : 0,
           bandBottom: band ? band.nodeBottom : totalH,
@@ -130,8 +168,7 @@
       });
 
       const edgeMap = {};
-      activeFlows.forEach((f) => {
-        if (!layout.positions[f.from] || !layout.positions[f.to]) return;
+      validFlows.forEach((f) => {
         const k = f.from + '|' + f.to;
         const amt = toMonthlyAmt(f);
         if (!edgeMap[k]) edgeMap[k] = { from: f.from, to: f.to, amount: 0, category: f.category, flows: [] };
@@ -143,65 +180,39 @@
       graphEdges.forEach((e) => { e.width = Math.max(1.5, Math.min(10, (e.amount / maxAmt) * 10)); });
 
       graphInited = true;
-      if (graphAnim) cancelAnimationFrame(graphAnim);
-      runGraphSim();
+      startEaseIn();
     }, 50);
   }
 
   function resetLayout() { graphInited = false; initGraph(true); }
 
-  function runGraphSim() {
-    const ctx = canvas.getContext('2d');
-    const W = canvas.width, H = canvas.height;
-    let steps = 0;
+  function draw() {
+    if (!canvas) return;
+    drawGraph(canvas.getContext('2d'), canvas.width, canvas.height);
+  }
 
-    function tick() {
-      const alpha = Math.max(0.001, 0.15 * Math.pow(0.995, steps));
-      steps++;
+  const easeOutCubic = (t) => 1 - Math.pow(1 - t, 3);
 
-      for (let i = 0; i < graphNodes.length; i++) {
-        for (let j = i + 1; j < graphNodes.length; j++) {
-          const a = graphNodes[i], b = graphNodes[j];
-          let dx = b.x - a.x, dy = b.y - a.y;
-          let dist = Math.sqrt(dx * dx + dy * dy) || 1;
-          const minDist = (a.r + b.r) * 2.5;
-          if (dist < minDist) {
-            const force = (minDist - dist) * 0.3 * alpha;
-            const fx = dx / dist * force;
-            const fy = dy / dist * force;
-            a.vx -= fx; a.vy -= fy; b.vx += fx; b.vy += fy;
-          }
-        }
-      }
-
-      graphEdges.forEach((e) => {
-        const a = graphNodes.find((n) => n.id === e.from);
-        const b = graphNodes.find((n) => n.id === e.to);
-        if (!a || !b) return;
-        let dx = b.x - a.x, dy = b.y - a.y;
-        let dist = Math.sqrt(dx * dx + dy * dy) || 1;
-        if (dist > 300) {
-          const force = (dist - 300) * 0.001 * alpha;
-          const fx = dx / dist * force;
-          const fy = dy / dist * force;
-          a.vx += fx; a.vy += fy; b.vx -= fx; b.vy -= fy;
-        }
-      });
-
+  // One-time ease-in: slide nodes from their start positions to the computed
+  // layout, then stop. There's no continuous simulation — the graph is static
+  // once settled (and after a drag), so nothing wanders.
+  function startEaseIn() {
+    if (graphAnim) cancelAnimationFrame(graphAnim);
+    const dur = 460;
+    let t0 = null;
+    const tick = (now) => {
+      if (t0 === null) t0 = now;
+      const t = Math.min(1, (now - t0) / dur);
+      const e = easeOutCubic(t);
       graphNodes.forEach((n) => {
-        if (n === graphDrag) return;
-        n.vx *= 0.7; n.vy *= 0.7;
-        n.x += n.vx; n.y += n.vy;
-        n.x = Math.max(n.r + 10, Math.min(W - n.r - 10, n.x));
-        // Keep each node inside its layer's vertical band so the layers stay
-        // visually separated as the user scrolls.
-        n.y = Math.max(n.bandTop + n.r, Math.min(n.bandBottom - n.r, n.y));
+        n.x = n.sx + (n.tx - n.sx) * e;
+        n.y = n.sy + (n.ty - n.sy) * e;
       });
-
-      drawGraph(ctx, W, H);
-      graphAnim = requestAnimationFrame(tick);
-    }
-    tick();
+      draw();
+      if (t < 1) graphAnim = requestAnimationFrame(tick);
+      else graphAnim = null;
+    };
+    graphAnim = requestAnimationFrame(tick);
   }
 
   function drawGraph(ctx, W, H) {
@@ -216,6 +227,22 @@
     graphNodes.forEach((n) => { nodeMap[n.id] = n; });
 
     const sc = currentScale;
+    // Focus: when a node is selected, light up just it, its incident edges, and
+    // its direct neighbours; everything else recedes to a faint ghost. Tapping a
+    // lit neighbour re-focuses onto it (traverse).
+    const sel = selectedId;
+    const litNodes = new Set();
+    const litEdges = new Set();
+    if (sel && nodeMap[sel]) {
+      litNodes.add(sel);
+      graphEdges.forEach((e) => {
+        if (e.from === sel || e.to === sel) {
+          litEdges.add(e);
+          litNodes.add(e.from === sel ? e.to : e.from);
+        }
+      });
+    }
+    const focus = litNodes.size > 0;
     // Layer bands: a faint divider above each band and a left-aligned label.
     if (graphLayout) {
       graphLayout.bands.forEach((band, bi) => {
@@ -239,7 +266,7 @@
       });
     }
 
-    store.accounts.filter((a) => a.linkedTo).forEach((debt) => {
+    if (!focus) store.accounts.filter((a) => a.linkedTo).forEach((debt) => {
       const dNode = nodeMap[debt.id];
       const aNode = nodeMap[debt.linkedTo];
       if (!dNode || !aNode) return;
@@ -274,6 +301,8 @@
       const a = nodeMap[e.from];
       const b = nodeMap[e.to];
       if (!a || !b) return;
+      const isLit = litEdges.has(e);
+      const ghost = focus && !isLit;
       const dx = b.x - a.x, dy = b.y - a.y;
       const dist = Math.sqrt(dx * dx + dy * dy) || 1;
       const nx = dx / dist, ny = dy / dist;
@@ -281,45 +310,67 @@
       const x2 = b.x - nx * b.r, y2 = b.y - ny * b.r;
       const col = CAT_COLORS[e.category] || cFallback;
       const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
+      // Gentle bow so parallel fan edges don't perfectly overlap.
       const cpOff = Math.max(30, dist * 0.2);
-      const perpX = -(y2 - y1) / dist * cpOff * 0.15;
-      const perpY = (x2 - x1) / dist * cpOff * 0.15;
+      const perpX = -(y2 - y1) / dist * cpOff * 0.08;
+      const perpY = (x2 - x1) / dist * cpOff * 0.08;
+
+      // Three tiers: lit (focused edge), ghost (faded context), resting (calm
+      // uniform bundle — no width-by-amount, no arrowheads, no labels).
       ctx.beginPath();
       ctx.moveTo(x1, y1);
       ctx.quadraticCurveTo(mx + perpX, my + perpY, x2, y2);
-      ctx.strokeStyle = col;
-      ctx.lineWidth = e.width * 2;
-      ctx.globalAlpha = 0.3;
+      if (ghost) { ctx.strokeStyle = cFallback; ctx.lineWidth = 1.2 * sc; ctx.globalAlpha = 0.06; }
+      else if (isLit) { ctx.strokeStyle = col; ctx.lineWidth = e.width * 2; ctx.globalAlpha = 0.5; }
+      else { ctx.strokeStyle = col; ctx.lineWidth = 1.6 * sc; ctx.globalAlpha = 0.22; }
       ctx.stroke();
       ctx.globalAlpha = 1;
 
-      const angle = Math.atan2(y2 - (my + perpY), x2 - (mx + perpX));
-      const hl = 12 + e.width;
-      ctx.beginPath();
-      ctx.moveTo(x2, y2);
-      ctx.lineTo(x2 - hl * Math.cos(angle - 0.35), y2 - hl * Math.sin(angle - 0.35));
-      ctx.moveTo(x2, y2);
-      ctx.lineTo(x2 - hl * Math.cos(angle + 0.35), y2 - hl * Math.sin(angle + 0.35));
-      ctx.strokeStyle = col;
-      ctx.lineWidth = Math.max(2, e.width);
-      ctx.globalAlpha = 0.5;
-      ctx.stroke();
-      ctx.globalAlpha = 1;
-
-      if (showLabels && e.amount > 0) {
-        ctx.font = `500 ${Math.round(13 * sc)}px "IBM Plex Mono"`;
-        ctx.fillStyle = col;
-        ctx.globalAlpha = 0.65;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'bottom';
-        ctx.fillText('$' + Math.round(e.amount).toLocaleString(), mx + perpX, my + perpY - 6);
+      if (isLit) {
+        const angle = Math.atan2(y2 - (my + perpY), x2 - (mx + perpX));
+        const hl = 12 + e.width;
+        ctx.beginPath();
+        ctx.moveTo(x2, y2);
+        ctx.lineTo(x2 - hl * Math.cos(angle - 0.35), y2 - hl * Math.sin(angle - 0.35));
+        ctx.moveTo(x2, y2);
+        ctx.lineTo(x2 - hl * Math.cos(angle + 0.35), y2 - hl * Math.sin(angle + 0.35));
+        ctx.strokeStyle = col;
+        ctx.lineWidth = Math.max(2, e.width);
+        ctx.globalAlpha = 0.7;
+        ctx.stroke();
         ctx.globalAlpha = 1;
+
+        if (showLabels && e.amount > 0) {
+          ctx.font = `500 ${Math.round(13 * sc)}px "IBM Plex Mono"`;
+          ctx.fillStyle = col;
+          ctx.globalAlpha = 0.9;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'bottom';
+          ctx.fillText('$' + Math.round(e.amount).toLocaleString(), mx + perpX, my + perpY - 6);
+          ctx.globalAlpha = 1;
+        }
       }
     });
 
     graphNodes.forEach((n) => {
       const col = ACCT_COLORS[n.type] || cFallback;
       const isExt = n.external;
+      const dim = focus && !litNodes.has(n.id);
+      const isSel = n.id === sel;
+
+      // Non-focused nodes recede to a faint outline (no fill/text) while focusing.
+      if (dim) {
+        ctx.beginPath();
+        ctx.arc(n.x, n.y, n.r, 0, Math.PI * 2);
+        ctx.strokeStyle = col;
+        ctx.globalAlpha = 0.16;
+        ctx.lineWidth = isExt ? 1.5 : 2;
+        if (isExt) { ctx.setLineDash([6, 4]); ctx.stroke(); ctx.setLineDash([]); }
+        else ctx.stroke();
+        ctx.globalAlpha = 1;
+        return;
+      }
+
       ctx.beginPath();
       ctx.arc(n.x, n.y, n.r + 5, 0, Math.PI * 2);
       ctx.fillStyle = col;
@@ -335,6 +386,17 @@
       ctx.strokeStyle = col;
       if (isExt) { ctx.setLineDash([6, 4]); ctx.stroke(); ctx.setLineDash([]); }
       else ctx.stroke();
+
+      // Emphasis ring on the selected node.
+      if (isSel) {
+        ctx.beginPath();
+        ctx.arc(n.x, n.y, n.r + 6, 0, Math.PI * 2);
+        ctx.strokeStyle = col;
+        ctx.lineWidth = 2.5;
+        ctx.globalAlpha = 0.9;
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+      }
 
       const bal = isExt
         ? (store.simData ? store.simData.finalBalances[n.id] || 0 : 0)
@@ -358,9 +420,6 @@
       ctx.fillText(label, n.x, n.y + n.r + 8);
     });
   }
-
-  let dragging = null;
-  let hovered = null;
 
   function getPos(clientX, clientY) {
     const r = canvas.getBoundingClientRect();
@@ -393,65 +452,26 @@
     tooltip.style.top = top + 'px';
   }
 
-  function onPointerDown(clientX, clientY) {
-    const pos = getPos(clientX, clientY);
-    const node = hitNode(pos);
-    if (node) {
-      dragging = node;
-      graphDrag = node;
-      canvas.style.cursor = 'grabbing';
-      showTooltip(node, clientX, clientY);
+  function hideTooltip() { if (tooltip) tooltip.style.display = 'none'; }
+
+  // Tap a node to focus it; tap a lit neighbour to traverse onto it; tap the
+  // focused node again or empty space to release. No dragging — a swipe just
+  // scrolls the tall canvas (a tap fires click, a scroll doesn't).
+  function onCanvasClick(e) {
+    const node = hitNode(getPos(e.clientX, e.clientY));
+    if (node && node.id !== selectedId) {
+      selectedId = node.id;
+      showTooltip(node, e.clientX, e.clientY);
+    } else {
+      selectedId = null;
+      hideTooltip();
     }
   }
 
-  function onPointerMove(clientX, clientY) {
-    const pos = getPos(clientX, clientY);
-    if (dragging) {
-      dragging.x = Math.max(dragging.r + 10, Math.min(canvas.width - dragging.r - 10, pos.x));
-      dragging.y = Math.max(dragging.bandTop + dragging.r, Math.min(dragging.bandBottom - dragging.r, pos.y));
-      dragging.vx = 0; dragging.vy = 0;
-      showTooltip(dragging, clientX, clientY);
-      return;
-    }
-    const node = hitNode(pos);
-    if (node && node !== hovered) {
-      hovered = node;
-      canvas.style.cursor = 'pointer';
-      showTooltip(node, clientX, clientY);
-    } else if (!node) {
-      hovered = null;
-      canvas.style.cursor = 'grab';
-      tooltip.style.display = 'none';
-    }
+  function onCanvasMove(e) {
+    canvas.style.cursor = hitNode(getPos(e.clientX, e.clientY)) ? 'pointer' : 'default';
   }
 
-  function onPointerEnd() {
-    dragging = null;
-    graphDrag = null;
-    canvas.style.cursor = 'grab';
-    // On touch devices, hide the tooltip on release so it doesn't linger.
-    tooltip.style.display = 'none';
-    hovered = null;
-  }
-
-  function onMouseDown(e) { onPointerDown(e.clientX, e.clientY); }
-  function onMouseMove(e) { onPointerMove(e.clientX, e.clientY); }
-  function onMouseUp() { onPointerEnd(); }
-  function onMouseLeave() { onPointerEnd(); }
-
-  function onTouchStart(e) {
-    if (e.touches.length !== 1) return;
-    const t = e.touches[0];
-    onPointerDown(t.clientX, t.clientY);
-    if (dragging) e.preventDefault();
-  }
-  function onTouchMove(e) {
-    if (e.touches.length !== 1) return;
-    const t = e.touches[0];
-    if (dragging) e.preventDefault();
-    onPointerMove(t.clientX, t.clientY);
-  }
-  function onTouchEnd() { onPointerEnd(); }
   function onResize() { initGraph(); }
 
   onMount(() => {
@@ -464,9 +484,15 @@
     window.removeEventListener('resize', onResize);
   });
 
+  // Changing the visible flow set re-lays-out; toggling labels or the theme just
+  // repaints (the graph is otherwise static).
   $effect(() => {
-    showMode; showLabels; ctrlOpen;
+    showMode;
     if (graphInited) initGraph();
+  });
+  $effect(() => {
+    showLabels; theme.mode; selectedId;
+    if (graphInited) draw();
   });
 </script>
 
@@ -494,14 +520,8 @@
     <canvas
       bind:this={canvas}
       class="graph-canvas"
-      onmousedown={onMouseDown}
-      onmousemove={onMouseMove}
-      onmouseup={onMouseUp}
-      onmouseleave={onMouseLeave}
-      ontouchstart={onTouchStart}
-      ontouchmove={onTouchMove}
-      ontouchend={onTouchEnd}
-      ontouchcancel={onTouchEnd}
+      onclick={onCanvasClick}
+      onmousemove={onCanvasMove}
     ></canvas>
   </div>
   <div
@@ -523,7 +543,7 @@
     width: 100%;
     /* height is set inline (canvas.style.height) to the computed layout height
        so the wrap scrolls vertically through the stacked layers. */
-    cursor: grab;
+    cursor: default;
     touch-action: pan-y;
   }
 </style>
