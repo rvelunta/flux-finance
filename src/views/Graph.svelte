@@ -18,6 +18,7 @@
   let graphInited = false;
   let currentDpr = 1;
   let currentScale = 1;
+  let graphLayout = null;
 
   const LAYER_LABELS = ['Deductions', 'Income', 'Accounts', 'Expenses'];
   const LAYER_LABEL_COLORS = ['#ef6461', '#2dd4a8', '#5b9cf6', '#f0b952'];
@@ -30,21 +31,45 @@
     return 3;
   }
 
-  function buildLayeredPositions(nodes, W, H) {
+  // Vertical layered layout: each non-empty layer becomes a horizontal band,
+  // stacked top → bottom, so the user scrolls down through the layers. Nodes are
+  // arranged in a centered grid within their band; the canvas grows as tall as
+  // needed and the wrap scrolls. Returns node positions, per-band metrics (for
+  // labels + Y clamping), and the total canvas height.
+  function buildVerticalLayout(nodes, W, rInt, sc) {
     const layers = [[], [], [], []];
     nodes.forEach((n) => { layers[n.layer].push(n); });
-    const padX = W * 0.08, padY = H * 0.12;
-    const usableW = W - padX * 2, usableH = H - padY * 2;
-    const colW = usableW / 3;
+    const padX = W * 0.06;
+    const usableW = W - padX * 2;
+    const labelH = 26 * sc;             // header strip for the layer label
+    const padV = 76 * sc;              // gap below each band's grid
+    const cellW = rInt * 2 + 52 * sc;   // horizontal slot → ~3 nodes per row on phones
+    const cellH = rInt * 2 + 150 * sc;  // tall row → generous vertical spacing
     const positions = {};
+    const bands = [];
+    let y = 28 * sc;
     layers.forEach((layer, li) => {
       if (!layer.length) return;
-      const x = padX + li * colW;
-      const gap = Math.min(90, usableH / (layer.length + 1));
-      const startY = H / 2 - (layer.length - 1) * gap / 2;
-      layer.forEach((n, ni) => { positions[n.id] = { x, y: startY + ni * gap }; });
+      const perRow = Math.max(1, Math.floor(usableW / cellW));
+      const rows = Math.ceil(layer.length / perRow);
+      const top = y;
+      const gridTop = top + labelH;
+      const gridH = rows * cellH;
+      layer.forEach((n, ni) => {
+        const row = Math.floor(ni / perRow);
+        const col = ni % perRow;
+        const inRow = Math.min(perRow, layer.length - row * perRow);
+        const slotW = usableW / inRow;
+        positions[n.id] = {
+          x: padX + slotW * (col + 0.5),
+          y: gridTop + cellH * (row + 0.5),
+        };
+      });
+      const bottom = gridTop + gridH + padV;
+      bands.push({ layer: li, top, bottom, labelY: top + 14 * sc, nodeTop: gridTop, nodeBottom: gridTop + gridH });
+      y = bottom;
     });
-    return positions;
+    return { positions, bands, totalH: y + 28 * sc };
   }
 
   function initGraph(forceReset = false) {
@@ -52,18 +77,20 @@
       if (!canvas) return;
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
       const cssW = canvas.clientWidth;
-      const cssH = canvas.clientHeight;
-      if (cssW < 50 || cssH < 50) return;
-      canvas.width = cssW * dpr;
-      canvas.height = cssH * dpr;
+      if (cssW < 50) return;
       currentDpr = dpr;
-      // Scale node sizes and fonts based on the smaller canvas dimension so
-      // the layout doesn't overlap on narrow viewports.
-      currentScale = Math.max(0.45, Math.min(1, Math.min(cssW, cssH) / 600));
+      const W = cssW * dpr;
+      // Scale folds in dpr so node/font sizes are legible in real (CSS) terms on
+      // high-density screens, with a gentle shrink on very narrow viewports.
+      // Everything below is in backing px; apparent CSS size ≈ value / dpr.
+      currentScale = dpr * Math.max(0.82, Math.min(1, cssW / 430));
+      const sc = currentScale;
+      // One uniform node radius — external nodes are distinguished by their
+      // dashed border, not by size.
+      const rNode = 34 * sc;
 
       const showEnabled = showMode === 'enabled';
       const activeFlows = store.flows.filter((f) => showEnabled ? f.enabled : true);
-      const W = canvas.width, H = canvas.height;
 
       const referencedIds = new Set();
       activeFlows.forEach((f) => { referencedIds.add(f.from); referencedIds.add(f.to); });
@@ -71,19 +98,37 @@
         .filter((a) => !a.external || referencedIds.has(a.id))
         .map((a) => ({ id: a.id, label: a.name, type: a.type, balance: a.balance, external: !!a.external, layer: getLayer(a) }));
 
-      const preset = buildLayeredPositions(nodeList, W, H);
-      const rInt = 40 * currentScale;
-      const rExt = 28 * currentScale;
+      const layout = buildVerticalLayout(nodeList, W, rNode, sc);
+      graphLayout = layout;
+      const totalH = layout.totalH;
+
+      // Backing store is W × totalH; the element is displayed at CSS width 100%
+      // and an explicit tall height so the wrap scrolls vertically through it.
+      canvas.width = W;
+      canvas.height = totalH;
+      canvas.style.height = (totalH / dpr) + 'px';
+
+      const bandByLayer = {};
+      layout.bands.forEach((b) => { bandByLayer[b.layer] = b; });
 
       graphNodes = nodeList.map((n) => {
         const existing = (!forceReset && graphInited) ? graphNodes.find((gn) => gn.id === n.id) : null;
-        const p = preset[n.id] || { x: W / 2, y: H / 2 };
-        return { ...n, x: existing ? existing.x : p.x, y: existing ? existing.y : p.y, vx: 0, vy: 0, r: n.external ? rExt : rInt };
+        const p = layout.positions[n.id] || { x: W / 2, y: totalH / 2 };
+        const band = bandByLayer[n.layer];
+        return {
+          ...n,
+          x: existing ? existing.x : p.x,
+          y: existing ? existing.y : p.y,
+          vx: 0, vy: 0,
+          r: rNode,
+          bandTop: band ? band.nodeTop : 0,
+          bandBottom: band ? band.nodeBottom : totalH,
+        };
       });
 
       const edgeMap = {};
       activeFlows.forEach((f) => {
-        if (!preset[f.from] || !preset[f.to]) return;
+        if (!layout.positions[f.from] || !layout.positions[f.to]) return;
         const k = f.from + '|' + f.to;
         const amt = toMonthlyAmt(f);
         if (!edgeMap[k]) edgeMap[k] = { from: f.from, to: f.to, amount: 0, category: f.category, flows: [] };
@@ -145,7 +190,9 @@
         n.vx *= 0.7; n.vy *= 0.7;
         n.x += n.vx; n.y += n.vy;
         n.x = Math.max(n.r + 10, Math.min(W - n.r - 10, n.x));
-        n.y = Math.max(n.r + 10, Math.min(H - n.r - 10, n.y));
+        // Keep each node inside its layer's vertical band so the layers stay
+        // visually separated as the user scrolls.
+        n.y = Math.max(n.bandTop + n.r, Math.min(n.bandBottom - n.r, n.y));
       });
 
       drawGraph(ctx, W, H);
@@ -165,20 +212,29 @@
     const nodeMap = {};
     graphNodes.forEach((n) => { nodeMap[n.id] = n; });
 
-    const layers = [[], [], [], []];
-    graphNodes.forEach((n) => { layers[n.layer].push(n); });
     const sc = currentScale;
-    layers.forEach((layer, li) => {
-      if (!layer.length) return;
-      const avgX = layer.reduce((s, n) => s + n.x, 0) / layer.length;
-      ctx.font = `600 ${Math.round(18 * sc)}px "IBM Plex Mono"`;
-      ctx.fillStyle = LAYER_LABEL_COLORS[li];
-      ctx.globalAlpha = 0.2;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'top';
-      ctx.fillText(LAYER_LABELS[li].toUpperCase(), avgX, 20 * sc);
-      ctx.globalAlpha = 1;
-    });
+    // Layer bands: a faint divider above each band and a left-aligned label.
+    if (graphLayout) {
+      graphLayout.bands.forEach((band, bi) => {
+        if (bi > 0) {
+          ctx.beginPath();
+          ctx.moveTo(0, band.top);
+          ctx.lineTo(W, band.top);
+          ctx.strokeStyle = cFallback;
+          ctx.globalAlpha = 0.14;
+          ctx.lineWidth = 1;
+          ctx.stroke();
+          ctx.globalAlpha = 1;
+        }
+        ctx.font = `600 ${Math.round(14 * sc)}px "IBM Plex Mono"`;
+        ctx.fillStyle = LAYER_LABEL_COLORS[band.layer];
+        ctx.globalAlpha = 0.55;
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'top';
+        ctx.fillText(LAYER_LABELS[band.layer].toUpperCase(), W * 0.05, band.labelY);
+        ctx.globalAlpha = 1;
+      });
+    }
 
     store.accounts.filter((a) => a.linkedTo).forEach((debt) => {
       const dNode = nodeMap[debt.id];
@@ -199,7 +255,7 @@
       const dBal = debt.balance;
       const aBal = store.accounts.find((a) => a.id === debt.linkedTo)?.balance || 0;
       const equity = aBal + dBal;
-      ctx.font = `500 ${Math.round(16 * sc)}px "IBM Plex Mono"`;
+      ctx.font = `500 ${Math.round(13 * sc)}px "IBM Plex Mono"`;
       ctx.fillStyle = cEquity;
       ctx.globalAlpha = 0.5;
       ctx.textAlign = 'center';
@@ -248,7 +304,7 @@
       ctx.globalAlpha = 1;
 
       if (showLabels && e.amount > 0) {
-        ctx.font = `500 ${Math.round(18 * sc)}px "IBM Plex Mono"`;
+        ctx.font = `500 ${Math.round(13 * sc)}px "IBM Plex Mono"`;
         ctx.fillStyle = col;
         ctx.globalAlpha = 0.65;
         ctx.textAlign = 'center';
@@ -281,7 +337,7 @@
         ? (store.simData ? store.simData.finalBalances[n.id] || 0 : 0)
         : n.balance;
       if (bal !== 0 || !isExt) {
-        ctx.font = `600 ${Math.round((isExt ? 14 : 16) * sc)}px "IBM Plex Mono"`;
+        ctx.font = `600 ${Math.round((isExt ? 12 : 14) * sc)}px "IBM Plex Mono"`;
         ctx.fillStyle = col;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
@@ -291,7 +347,7 @@
         ctx.fillText(short, n.x, n.y);
       }
 
-      ctx.font = `500 ${Math.round((isExt ? 16 : 20) * sc)}px "IBM Plex Mono"`;
+      ctx.font = `500 ${Math.round((isExt ? 12 : 14) * sc)}px "IBM Plex Mono"`;
       ctx.fillStyle = isExt ? cLabelExt : cLabel;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'top';
@@ -348,7 +404,8 @@
   function onPointerMove(clientX, clientY) {
     const pos = getPos(clientX, clientY);
     if (dragging) {
-      dragging.x = pos.x; dragging.y = pos.y;
+      dragging.x = Math.max(dragging.r + 10, Math.min(canvas.width - dragging.r - 10, pos.x));
+      dragging.y = Math.max(dragging.bandTop + dragging.r, Math.min(dragging.bandBottom - dragging.r, pos.y));
       dragging.vx = 0; dragging.vy = 0;
       showTooltip(dragging, clientX, clientY);
       return;
@@ -454,13 +511,16 @@
   .graph-canvas-wrap {
     flex: 1;
     min-height: 0;
-    overflow: hidden;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
   }
   .graph-canvas {
     display: block;
     width: 100%;
-    height: 100%;
+    /* height is set inline (canvas.style.height) to the computed layout height
+       so the wrap scrolls vertically through the stacked layers. */
     cursor: grab;
-    touch-action: none;
+    touch-action: pan-y;
   }
 </style>

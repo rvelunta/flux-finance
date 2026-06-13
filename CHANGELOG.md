@@ -11,6 +11,7 @@ The start of the mobile-native UI pass — same Svelte source, mobile-specific l
 
 ### Changed
 - **Schedule + net-worth tables redesigned to read as one integrated list on mobile.** The Scheduled-flows table dropped its boxy fills, colored left-bars, and sticky grid header in favor of transparent rows with a separator on every row (including expanded occurrences), matching the Net-worth breakdown. Period headers span the date/flows columns (e.g. `Jul 2026 · 17 flows`); columns were rebalanced so balances no longer truncate; the weekday was dropped from per-flow dates. Both the schedule and the breakdown rows now span the full screen width on mobile.
+- **Graph reoriented to a vertical layered scroll.** The flow diagram's layers (Deductions → Income → Accounts → Expenses) now stack top-to-bottom as a tall, scrollable canvas instead of horizontal columns, with each node pinned to its layer's band. Nodes are enlarged with uniform sizing and legible labels — the canvas now accounts for device pixel ratio, so text is sized in real terms rather than rendering tiny on high-density screens.
 
 ## 3.14.0 — 2026-06-11
 
