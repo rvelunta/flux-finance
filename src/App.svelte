@@ -3,6 +3,7 @@
     store, ui,
     closeAccountModal, closeFlowModal, closeScheduleModal,
     selectScenario, newScenario, renameScenario, deleteScenario,
+    exportJSON, importJSON,
   } from './lib/state.svelte.js';
   import Projection from './views/Projection.svelte';
   import Accounts from './views/Accounts.svelte';
@@ -17,7 +18,7 @@
   import ConflictModal from './components/ConflictModal.svelte';
   import LLMInputModal from './components/LLMInputModal.svelte';
   import WizardModal from './components/WizardModal.svelte';
-  import { initAuth, auth } from './lib/sync.svelte.js';
+  import { initAuth, auth, signOut } from './lib/sync.svelte.js';
   import { theme, toggleTheme } from './lib/theme.svelte.js';
   import { isMobile } from './lib/platform.js';
   import { fly, fade } from 'svelte/transition';
@@ -31,6 +32,16 @@
   let llmModalMode = $state('setup');
   let wizardModalOpen = $state(false);
   let planSheetOpen = $state(false);
+  let settingsSheetOpen = $state(false);
+  let settingsFileInput;
+
+  function onSettingsImport(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    importJSON(file).catch(() => alert('Invalid JSON'));
+    e.target.value = '';
+    settingsSheetOpen = false;
+  }
 
   function openLLM(mode) {
     llmModalMode = mode;
@@ -88,6 +99,7 @@
       menuOpen = false;
       scenarioMenuOpen = false;
       planSheetOpen = false;
+      settingsSheetOpen = false;
     }
   }
 
@@ -122,8 +134,9 @@
 <svelte:document onclick={onDocClick} />
 
 <div class="chrome">
-  <div class="topbar" class:is-mobile={isMobile}>
-    {#if !isMobile}<h1>FLUX</h1>{/if}
+  {#if !isMobile}
+  <div class="topbar">
+    <h1>FLUX</h1>
     <div class="topbar-r">
     {#if !isMobile}
     <div class="scenario-menu" id="scenarioMenuWrap">
@@ -201,6 +214,9 @@
       <AccountMenu onOpenAuth={() => (authModalOpen = true)} />
     </div>
   </div>
+  {/if}
+
+  <KpiBanner onOpenSettings={() => (settingsSheetOpen = true)} />
 
   {#if showFirstRun}
     <div class="first-run-banner">
@@ -209,8 +225,6 @@
       <button class="frb-dismiss" onclick={dismissFirstRun} title="Don't show again">Maybe later</button>
     </div>
   {/if}
-
-  <KpiBanner />
 
   {#if !isMobile}
     <div class="tabs">
@@ -339,6 +353,43 @@
         <button type="button" class="sheet-action ai primary" onclick={() => { openLLM('edit'); planSheetOpen = false; }}>✦ AI Edit this plan</button>
       </div>
     </div>
+  {/if}
+
+  {#if settingsSheetOpen}
+    <div
+      class="sheet-overlay"
+      transition:fade={{ duration: 150 }}
+      onclick={() => (settingsSheetOpen = false)}
+      role="presentation"
+    >
+      <div class="sheet" transition:fly={{ y: 320, duration: 240 }} onclick={(e) => e.stopPropagation()}>
+        <div class="sheet-grab"></div>
+
+        <div class="sheet-sec-label">Account</div>
+        {#if auth.user}
+          <div class="sheet-active">
+            <span class="sheet-active-dot"></span>
+            <span class="sheet-active-name">{auth.user.email}</span>
+            <span class="sheet-active-tag">synced</span>
+          </div>
+          <button type="button" class="sheet-action" onclick={async () => { settingsSheetOpen = false; await signOut(); }}>Sign out</button>
+        {:else if auth.status === 'signed-out'}
+          <button type="button" class="sheet-action primary" onclick={() => { settingsSheetOpen = false; authModalOpen = true; }}>Sign in to back up &amp; sync</button>
+        {:else}
+          <div class="sheet-note">{auth.status === 'unconfigured' ? 'Local-only — sync not configured' : 'Loading…'}</div>
+        {/if}
+
+        <div class="sheet-divider"></div>
+        <div class="sheet-sec-label">Appearance</div>
+        <button type="button" class="sheet-action" onclick={toggleTheme}>{theme.mode === 'dark' ? '☀  Light theme' : '☾  Dark theme'}</button>
+
+        <div class="sheet-divider"></div>
+        <div class="sheet-sec-label">Data</div>
+        <button type="button" class="sheet-action" onclick={() => { exportJSON(); settingsSheetOpen = false; }}>Export…</button>
+        <button type="button" class="sheet-action" onclick={() => settingsFileInput?.click()}>Import…</button>
+      </div>
+    </div>
+    <input type="file" bind:this={settingsFileInput} accept=".json" style="display:none" onchange={onSettingsImport} />
   {/if}
 </div>
 
