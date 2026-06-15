@@ -6,6 +6,8 @@
   import BalanceChart from '../components/BalanceChart.svelte';
   import ScheduleTable from '../components/ScheduleTable.svelte';
   import { theme, cssVar } from '../lib/theme.svelte.js';
+  import { isMobile } from '../lib/platform.js';
+  import { fly, fade } from 'svelte/transition';
 
   // Net Worth lines track the primary text color so they stay visible in
   // both themes; reading theme.mode keeps the derived colors reactive.
@@ -14,6 +16,7 @@
   let pickerOpen = $state(false);
   let scheduleTables = $state({});
   let ctrlOpen = $state(false);
+  let rangeSheetOpen = $state(false);
 
   const NW_ID = '__nw__';
 
@@ -206,28 +209,58 @@
 
 <div class="view active" style="flex-direction:column;overflow:hidden;">
   <div class="proj-range-bar">
-    <button type="button" class="ctrl-toggle proj-range-toggle" onclick={() => ctrlOpen = !ctrlOpen}>
+    <button type="button" class="ctrl-toggle proj-range-toggle" onclick={() => { if (isMobile) rangeSheetOpen = true; else ctrlOpen = !ctrlOpen; }}>
       <span>Range · {projMonths}mo · {store.config.resolution}</span>
-      <span class="ctrl-toggle-caret">{ctrlOpen ? '▴' : '▾'}</span>
+      <span class="ctrl-toggle-caret">{(isMobile ? rangeSheetOpen : ctrlOpen) ? '▴' : '▾'}</span>
     </button>
   </div>
-  <div class="ctrl-body proj-range-body" class:open={ctrlOpen}>
-    <label for="projStart">Start</label>
-    <input id="projStart" type="date" bind:value={store.config.startDate} />
-    <label for="projEnd">End</label>
-    <input id="projEnd" type="date" bind:value={store.config.endDate} />
-    <label for="projSpan">Span</label>
-    <select id="projSpan" value={currentSpan} onchange={(e) => setSpan(e.currentTarget.value)}>
-      {#if currentSpan === 'custom'}<option value="custom">Custom</option>{/if}
-      {#each spanPresets as p (p.id)}<option value={p.id}>{p.label}</option>{/each}
-    </select>
-    <label for="projRes">Resolution</label>
-    <select id="projRes" bind:value={store.config.resolution}>
-      <option value="daily">Daily</option>
-      <option value="weekly">Weekly</option>
-      <option value="monthly">Monthly</option>
-    </select>
-  </div>
+  {#if !isMobile}
+    <div class="ctrl-body proj-range-body" class:open={ctrlOpen}>
+      <label for="projStart">Start</label>
+      <input id="projStart" type="date" bind:value={store.config.startDate} />
+      <label for="projEnd">End</label>
+      <input id="projEnd" type="date" bind:value={store.config.endDate} />
+      <label for="projSpan">Span</label>
+      <select id="projSpan" value={currentSpan} onchange={(e) => setSpan(e.currentTarget.value)}>
+        {#if currentSpan === 'custom'}<option value="custom">Custom</option>{/if}
+        {#each spanPresets as p (p.id)}<option value={p.id}>{p.label}</option>{/each}
+      </select>
+      <label for="projRes">Resolution</label>
+      <select id="projRes" bind:value={store.config.resolution}>
+        <option value="daily">Daily</option>
+        <option value="weekly">Weekly</option>
+        <option value="monthly">Monthly</option>
+      </select>
+    </div>
+  {/if}
+
+  {#if isMobile && rangeSheetOpen}
+    <div class="sheet-overlay" transition:fade={{ duration: 150 }} onclick={() => (rangeSheetOpen = false)} role="presentation">
+      <div class="sheet" transition:fly={{ y: 320, duration: 240 }} onclick={(e) => e.stopPropagation()}>
+        <div class="sheet-grab"></div>
+
+        <div class="sheet-sec-label">Time span</div>
+        <div class="sheet-chips">
+          {#each spanPresets as p (p.id)}
+            <button type="button" class="sheet-chip" class:active={currentSpan === p.id} onclick={() => setSpan(p.id)}>{p.label}</button>
+          {/each}
+        </div>
+
+        <div class="sheet-divider"></div>
+        <div class="sheet-sec-label">Custom range</div>
+        <div class="sheet-field"><span class="sheet-field-l">Start</span><input type="date" bind:value={store.config.startDate} /></div>
+        <div class="sheet-field"><span class="sheet-field-l">End</span><input type="date" bind:value={store.config.endDate} /></div>
+
+        <div class="sheet-divider"></div>
+        <div class="sheet-sec-label">Resolution</div>
+        <div class="sheet-chips">
+          {#each [['daily', 'Daily'], ['weekly', 'Weekly'], ['monthly', 'Monthly']] as [val, lbl] (val)}
+            <button type="button" class="sheet-chip" class:active={store.config.resolution === val} onclick={() => (store.config.resolution = val)}>{lbl}</button>
+          {/each}
+        </div>
+      </div>
+    </div>
+  {/if}
 
   <div class="proj-scroll">
     <div class="proj-section">

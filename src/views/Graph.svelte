@@ -4,12 +4,15 @@
   import { ACCT_COLORS, CAT_COLORS } from '../lib/constants.js';
   import { toMonthlyAmt } from '../lib/format.js';
   import { theme, cssVar } from '../lib/theme.svelte.js';
+  import { isMobile } from '../lib/platform.js';
+  import { fly, fade } from 'svelte/transition';
 
   let canvas;
   let tooltip;
   let showMode = $state('all');
   let showLabels = $state(true);
   let ctrlOpen = $state(false);
+  let optionsSheetOpen = $state(false);
   let selectedId = $state(null);   // focused node id, or null for the resting overview
 
   let graphNodes = [];
@@ -511,12 +514,13 @@
   <div class="ctrl">
     <button onclick={resetLayout}>Reset layout</button>
     <span style="margin-left:auto;display:flex;gap:8px;align-items:center;">
-      <button type="button" class="ctrl-toggle" onclick={() => ctrlOpen = !ctrlOpen}>
+      <button type="button" class="ctrl-toggle" onclick={() => { if (isMobile) optionsSheetOpen = true; else ctrlOpen = !ctrlOpen; }}>
         <span>Options</span>
-        <span class="ctrl-toggle-caret">{ctrlOpen ? '▴' : '▾'}</span>
+        <span class="ctrl-toggle-caret">{(isMobile ? optionsSheetOpen : ctrlOpen) ? '▴' : '▾'}</span>
       </button>
     </span>
   </div>
+  {#if !isMobile}
   <div class="ctrl-body" class:open={ctrlOpen}>
     <label for="graphMode">Show</label>
     <select id="graphMode" bind:value={showMode}>
@@ -527,6 +531,25 @@
       <input type="checkbox" bind:checked={showLabels} /> Amounts
     </label>
   </div>
+  {/if}
+
+  {#if isMobile && optionsSheetOpen}
+    <div class="sheet-overlay" transition:fade={{ duration: 150 }} onclick={() => (optionsSheetOpen = false)} role="presentation">
+      <div class="sheet" transition:fly={{ y: 320, duration: 240 }} onclick={(e) => e.stopPropagation()}>
+        <div class="sheet-grab"></div>
+        <div class="sheet-sec-label">Show flows</div>
+        <div class="sheet-chips">
+          <button type="button" class="sheet-chip" class:active={showMode === 'all'} onclick={() => (showMode = 'all')}>All flows</button>
+          <button type="button" class="sheet-chip" class:active={showMode === 'enabled'} onclick={() => (showMode = 'enabled')}>Enabled only</button>
+        </div>
+        <div class="sheet-divider"></div>
+        <div class="sheet-sec-label">Labels</div>
+        <div class="sheet-chips">
+          <button type="button" class="sheet-chip" class:active={showLabels} onclick={() => (showLabels = !showLabels)}>{showLabels ? '✓ ' : ''}Amounts</button>
+        </div>
+      </div>
+    </div>
+  {/if}
   <div class="graph-canvas-wrap">
     <canvas
       bind:this={canvas}

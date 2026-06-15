@@ -3,11 +3,14 @@
   import { ACCT_COLORS, TYPE_LABELS } from '../lib/constants.js';
   import { fmt2 } from '../lib/format.js';
   import AccountCard from '../components/AccountCard.svelte';
+  import { isMobile } from '../lib/platform.js';
+  import { fly, fade } from 'svelte/transition';
 
   let search = $state('');
   let showMode = $state('all');
   let sortMode = $state('type');
   let ctrlOpen = $state(false);
+  let filterSheetOpen = $state(false);
   let acctView = $state('list');
   let expandedAcctGroups = $state(new Set());
 
@@ -133,15 +136,16 @@
     </div>
     <div class="vt-actions">
       {#if acctView === 'list'}
-        <button type="button" class="ctrl-toggle" onclick={() => ctrlOpen = !ctrlOpen}>
+        <button type="button" class="ctrl-toggle" onclick={() => { if (isMobile) filterSheetOpen = true; else ctrlOpen = !ctrlOpen; }}>
           <span>Filters{activeFilterCount ? ` (${activeFilterCount})` : ''}</span>
-          <span class="ctrl-toggle-caret">{ctrlOpen ? '▴' : '▾'}</span>
+          <span class="ctrl-toggle-caret">{(isMobile ? filterSheetOpen : ctrlOpen) ? '▴' : '▾'}</span>
         </button>
       {/if}
       <button class="act" onclick={() => openAccountModal()}>+ Add</button>
     </div>
   </div>
   {#if acctView === 'list'}
+  {#if !isMobile}
   <div class="ctrl-body" class:open={ctrlOpen}>
     <input type="text" bind:value={search} placeholder="Search accounts..." style="width:180px;" />
     <div style="display:flex;gap:3px;flex-wrap:wrap;">
@@ -173,6 +177,42 @@
       </select>
     </div>
   </div>
+  {/if}
+
+  {#if isMobile && filterSheetOpen}
+    <div class="sheet-overlay" transition:fade={{ duration: 150 }} onclick={() => (filterSheetOpen = false)} role="presentation">
+      <div class="sheet" transition:fly={{ y: 320, duration: 240 }} onclick={(e) => e.stopPropagation()}>
+        <div class="sheet-grab"></div>
+        <input type="text" class="sheet-search" bind:value={search} placeholder="Search accounts…" />
+        <div class="sheet-sec-label">Type</div>
+        <div class="sheet-chips">
+          {#each types as t (t)}
+            {@const on = store.acctTypeFilter.has(t)}
+            {@const col = ACCT_COLORS[t] || '#6a7490'}
+            <button type="button" class="sheet-chip" class:active={on} style={on ? `border-color:${col};color:${col};background:${col}1f` : ''} onclick={() => toggleType(t)}>{TYPE_LABELS[t] || t}</button>
+          {/each}
+        </div>
+        <div class="sheet-divider"></div>
+        <div class="sheet-sec-label">Show</div>
+        <div class="sheet-chips">
+          <button type="button" class="sheet-chip" class:active={showMode === 'all'} onclick={() => (showMode = 'all')}>All</button>
+          <button type="button" class="sheet-chip" class:active={showMode === 'internal'} onclick={() => (showMode = 'internal')}>Internal</button>
+          <button type="button" class="sheet-chip" class:active={showMode === 'external'} onclick={() => (showMode = 'external')}>External</button>
+        </div>
+        <div class="sheet-divider"></div>
+        <div class="sheet-field">
+          <span class="sheet-field-l">Sort by</span>
+          <select bind:value={sortMode}>
+            <option value="type">Type</option>
+            <option value="balance-desc">Balance ↓</option>
+            <option value="balance-asc">Balance ↑</option>
+            <option value="name-asc">Name A-Z</option>
+            <option value="rate-desc">Rate ↓</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  {/if}
 
   {#snippet acctRow(a)}
     <tr>

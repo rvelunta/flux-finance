@@ -2,12 +2,15 @@
   import { store, openFlowModal, toggleFlow, deleteFlow } from '../lib/state.svelte.js';
   import { PER_LABELS, CAT_COLORS } from '../lib/constants.js';
   import { fmt2, toMonthlyAmt } from '../lib/format.js';
+  import { isMobile } from '../lib/platform.js';
+  import { fly, fade } from 'svelte/transition';
 
   let search = $state('');
   let groupFilter = $state('');
   let acctFilter = $state('');
   let sortMode = $state('group');
   let ctrlOpen = $state(false);
+  let filterSheetOpen = $state(false);
   let flowView = $state('list');
 
   const acctName = (id) => store.accounts.find((x) => x.id === id)?.name ?? '?';
@@ -160,15 +163,16 @@
       </div>
       <div class="vt-actions">
         {#if flowView === 'list'}
-          <button type="button" class="ctrl-toggle" onclick={() => ctrlOpen = !ctrlOpen}>
+          <button type="button" class="ctrl-toggle" onclick={() => { if (isMobile) filterSheetOpen = true; else ctrlOpen = !ctrlOpen; }}>
             <span>Filters{activeFilterCount ? ` (${activeFilterCount})` : ''}</span>
-            <span class="ctrl-toggle-caret">{ctrlOpen ? '▴' : '▾'}</span>
+            <span class="ctrl-toggle-caret">{(isMobile ? filterSheetOpen : ctrlOpen) ? '▴' : '▾'}</span>
           </button>
         {/if}
         <button class="act" onclick={() => openFlowModal()}>+ Add</button>
       </div>
     </div>
     {#if flowView === 'list'}
+    {#if !isMobile}
     <div class="ctrl-body" class:open={ctrlOpen} style="flex-direction:column;align-items:stretch;">
       <input type="text" bind:value={search} placeholder="Search flows..." style="width:100%;" />
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
@@ -204,6 +208,51 @@
         </div>
       </div>
     </div>
+    {/if}
+
+    {#if isMobile && filterSheetOpen}
+      <div class="sheet-overlay" transition:fade={{ duration: 150 }} onclick={() => (filterSheetOpen = false)} role="presentation">
+        <div class="sheet" transition:fly={{ y: 320, duration: 240 }} onclick={(e) => e.stopPropagation()}>
+          <div class="sheet-grab"></div>
+          <input type="text" class="sheet-search" bind:value={search} placeholder="Search flows…" />
+          <div class="sheet-sec-label">Category</div>
+          <div class="sheet-chips">
+            {#each categories as c (c)}
+              <button type="button" class="sheet-chip" class:active={store.flowCatFilter.has(c)} onclick={() => toggleCat(c)}>{c}</button>
+            {/each}
+          </div>
+          <div class="sheet-divider"></div>
+          <div class="sheet-field">
+            <span class="sheet-field-l">Group</span>
+            <select bind:value={groupFilter}>
+              <option value="">All groups</option>
+              <option value="__none__">Ungrouped</option>
+              {#each groups as g (g)}<option value={g}>{g}</option>{/each}
+            </select>
+          </div>
+          <div class="sheet-field">
+            <span class="sheet-field-l">Account</span>
+            <select bind:value={acctFilter}>
+              <option value="">All accounts</option>
+              {#each store.accounts as a (a.id)}<option value={a.id}>{a.name}{a.external ? ' (ext)' : ''}</option>{/each}
+            </select>
+          </div>
+          <div class="sheet-field">
+            <span class="sheet-field-l">Sort by</span>
+            <select bind:value={sortMode}>
+              <option value="group">Group</option>
+              <option value="amount-desc">Amount ↓</option>
+              <option value="amount-asc">Amount ↑</option>
+              <option value="name-asc">Name A-Z</option>
+              <option value="name-desc">Name Z-A</option>
+              <option value="category">Category</option>
+              <option value="from">Source</option>
+              <option value="to">Destination</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    {/if}
 
     {#snippet flowCard(fl)}
       {@const kind = flowKind(fl)}
